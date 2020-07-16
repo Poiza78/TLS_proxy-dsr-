@@ -7,19 +7,19 @@
 #include <sys/socket.h>
 #include <string.h> // memset()
 
-int make_socket(int port, int addr){
+int make_socket(int port, int ip){
 	int sock;
-	struct sockaddr_in params;
+	struct sockaddr_in addr;
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock < 0){
 		perror("socket");
 		exit(EXIT_FAILURE);
 	}
-	memset(&params,0, sizeof(params));	
-	params.sin_family = AF_INET;
-	params.sin_port = htons (port);
-	params.sin_addr.s_addr = htonl (addr);
-	if (bind (sock, (struct sockaddr *) &params, sizeof (params)) < 0){
+	memset(&addr,0, sizeof(addr));	
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons (port);
+	addr.sin_addr.s_addr = htonl (ip);
+	if (bind (sock, (struct sockaddr *) &addr, sizeof (addr)) < 0){
 		perror ("bind");
 		exit (EXIT_FAILURE);
 	}
