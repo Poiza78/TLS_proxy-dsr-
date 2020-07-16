@@ -9,7 +9,7 @@
 
 int main(int argc, const char** argv){
 	if (argc != 2){
-		printf("Usage: ./tcp_server port_num\n");
+		fprintf(stderr, "Usage: ./tcp_server port_num\n");
 		exit(EXIT_FAILURE);
 	}
 	int server_sock;
@@ -28,7 +28,8 @@ int main(int argc, const char** argv){
 			perror("accept");
 			exit(EXIT_FAILURE);
 		}
-		calculation(connection_sock);
+
+		process(connection_sock);
 		close(connection_sock); 
 	}
 	exit(EXIT_SUCCESS);
