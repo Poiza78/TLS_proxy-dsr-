@@ -28,7 +28,6 @@ int main(int argc, const char** argv){
 			perror("accept");
 			exit(EXIT_FAILURE);
 		}
-
 		process(connection_sock);
 		close(connection_sock); 
 	}
