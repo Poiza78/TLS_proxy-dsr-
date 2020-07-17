@@ -25,13 +25,8 @@ void process(int connection_sock){
 		fprintf(stderr, "error: %s\n", error.text);
 		return;
 	}
-	if (!json_is_object(request)){
-		fprintf(stderr, "error: request isn't an object\n");
-		json_decref(request);
-		exit(EXIT_FAILURE);
-	}
 	params = json_object_get(request, "params");
-	if (!json_is_object(request)){
+	if (!json_is_object(params)){
 		fprintf(stderr, "error: params isn't an object\n");
 		code = 2;
 		exit(EXIT_FAILURE);
