@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: ./start tcp_serv_port_num"
+    exit 1
+fi
+./tcp_server $1 &
+./tcp_client $1
