@@ -2,10 +2,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <netinet/in.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <jansson.h>
-#include "connection.c"
+#include "connection.h"
 
 static void process_client(int sock);
 
@@ -16,19 +17,11 @@ int main(int argc, const char** argv)
                 exit(EXIT_FAILURE);
         }
 	int client_sock;
-	client_sock = make_socket(argv[1], INADDR_LOOPBACK, CLIENT);
+	client_sock = make_socket(INADDR_LOOPBACK, argv[1], CLIENT);
 	process_client(client_sock);
 	close(client_sock);
 	exit(EXIT_SUCCESS);
 }
-
-enum {
-WRONG = -1,
-EXIT,
-SET,
-ADD,
-CALC
-};
 
 static void set(char* line, json_t* params)
 {
@@ -44,38 +37,62 @@ static void add(char* line, json_t* expressions)
 }
 static void calculation(int sock, json_t* params, json_t* expressions)
 {
-	json_t *request, *answer, *code, *results;
+	json_t *request, *response, *code, *results;
 	json_error_t error;
 	request = json_object();
+
 	json_object_set(request, "params", params);
 	json_object_set(request, "expressions", expressions);
+	if (json_dumpfd(request, sock, JSON_INDENT(1)) < 0){
+		fprintf(stderr, "error: can't write to socket\n");
+		json_decref(request);
+		return;
+	}
+	json_decref(request);
+	json_array_clear(expressions);
 
-	json_dumpfd(request, sock, JSON_INDENT(1));
-
-	answer = json_loadfd(sock, JSON_DISABLE_EOF_CHECK, &error);
-	if (!answer){
+	response = json_loadfd(sock, JSON_DISABLE_EOF_CHECK, &error);
+	if (!response){
 		fprintf(stderr, "error: %s\n", error.text);
 		return;
 	}
-	code = json_object_get(answer, "code");	
-	if (json_integer_value(code)){
-		fprintf(stderr,"error code: %d\n", json_integer_value(code));
+	if (!json_is_object(response)){
+		fprintf(stderr, "error: response isn't an object\n");
+		json_decref(response);
 		return;
 	}
-	results = json_object_get(answer, "results");
+	code = json_object_get(response, "code");	
+	if (json_integer_value(code)){
+		fprintf(stderr,"error code: %d\n", json_integer_value(code));
+		json_decref(response);
+		return;
+	}
+	results = json_object_get(response, "results");
+	if (!json_is_array(results)){
+		fprintf(stderr, "error: results isn't an array\n");
+		json_decref(response);
+		return;
+	}
 	for (int i=0; i< json_array_size(results); ++i){
 		json_t *result = json_array_get(results,i);
+		if (!json_is_string(result)){
+			fprintf(stderr, "error: result isn't a string\n");
+			json_decref(response);
+			return;
+		}
 		printf("%s\n", json_string_value(result));
-		json_decref(result);
 	}
-	//printf("%s\n", json_dumps(request, 0));
-	//printf("%s\n", json_dumps(answer, 0));
-	json_decref(code);
-	json_decref(results);
-	json_decref(request);
-	json_decref(answer);
-	json_array_clear(expressions);
+	json_decref(response);
 }
+
+enum {
+WRONG = -1,
+EXIT,
+SET,
+ADD,
+CALC
+};
+
 static int identify(const char* line)
 {
 	if (!strncmp(line, "exit", 4))
@@ -90,6 +107,7 @@ static int identify(const char* line)
 }
 static void process_client(int sock)
 {
+	printf("\nYou can use: add, set, calculate, exit\n\n");
 	char* line;
 	int type;
 
@@ -114,6 +132,7 @@ static void process_client(int sock)
 			calculation(sock, params,expressions);
 			break;
 		case EXIT:
+			free(line);
 			json_decref(params);
 			json_decref(expressions);
 			return;

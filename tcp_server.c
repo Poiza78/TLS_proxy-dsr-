@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
+#include <string.h>
 #include <ctype.h>
 #include <jansson.h>
 #include <sys/socket.h>
-#include "connection.c"
+#include <netinet/in.h>
+#include "connection.h"
 
 #define BUF_SIZE 1024
 
@@ -17,7 +18,7 @@ int main(int argc, const char** argv){
 		exit(EXIT_FAILURE);
 	}
 	int server_sock, client_sock;
-	server_sock = make_socket(argv[1], INADDR_ANY, SERVER);
+	server_sock = make_socket(INADDR_ANY, argv[1], SERVER);
 	while(1){
 		client_sock = accept(server_sock, 0,0);
 		if (client_sock < 0)
@@ -47,7 +48,7 @@ static void substitute(json_t* params, char* expression)
 	json_object_foreach(params, var, value)
 		for (int i=0; i<strlen(expression); i++)
 			if (expression[i] == *var)
-				expression[i++] = json_integer_value(value) + '0';
+				expression[i++] = json_integer_value(value)+'0';
 }
 static void exp_to_rpn(char* expression)
 {
@@ -98,42 +99,54 @@ static int calculate(char* rpn)
 	}	
 	return pop();
 }
+/*
+static void json_error(const char* err_msg, int* code, int code_value)
+{
+	fprintf(stderr, "error: can't read from socket");
+	json_decref(request);
+	*code = code_value;
+}
+*/
+
 static void process_server(int connection_sock)
 {
-	while (1){
-	int code = 0;
-	json_t *request, *params, *expressions, *answer, *results;
-	json_error_t error;
-	answer = json_object();
+	int code;
+	json_t *request, *params, *expressions, *response, *results;
 	results = json_array();
-	request = json_loadfd(connection_sock, JSON_DISABLE_EOF_CHECK, &error);
-	if (!request)
-		return;
+
+while (1){
+	code = 0;
+	request = json_loadfd(connection_sock, JSON_DISABLE_EOF_CHECK, 0);
+	if (!request){
+		fprintf(stderr, "error: can't read from socket");
+		break;
+	}
 	if (!json_is_object(request)){
 		fprintf(stderr, "error: request isn't an object\n");
-		code = 2;
-		return;
+		json_decref(request);
+		code = 1;
 	}
 	params = json_object_get(request, "params");
 	if (!json_is_object(params)){
 		fprintf(stderr, "error: params isn't an object\n");
-		code = 2;
-		return;
+		json_decref(request);
+		code = 1;
 	}
 	expressions = json_object_get(request, "expressions");
 	if (!json_is_array(expressions)){
 		fprintf(stderr, "error: expressions isn't an array\n");
-		code = 2;
-		return;
+		json_decref(request);
+		code = 1;
 	}
-	for (int i=0; i< json_array_size(expressions); ++i){
+	for (int i=0; i < json_array_size(expressions) && !code ; ++i){
 		char buf[BUF_SIZE], tmp[BUF_SIZE];
 		const char* exp_string;
 		json_t *exp = json_array_get(expressions,i);
 		if (!json_is_string(exp)){
-			code = 1;
-			fprintf(stderr,"error: wrong expression\n");
-			continue;
+			fprintf(stderr,"error: expression isn't a string\n");
+			json_decref(request);
+			code = 1;// code?3:1;
+			break;
 		}
 		exp_string = json_string_value(exp);
 		strcpy(tmp,exp_string);
@@ -142,14 +155,20 @@ static void process_server(int connection_sock)
 		sprintf(buf,"%s = %d", exp_string, calculate(tmp));
 		json_array_append_new(results, json_string(buf));
 	}
-	json_object_set_new(answer,"code", json_integer(code));
-	json_object_set(answer,"results", results);
-	int n = json_dumpfd(answer,connection_sock,JSON_INDENT(1));
-	if ( n < 0 ){
-		fprintf(stderr, "error: can't write to socket");
-		exit(EXIT_FAILURE);
-	}
 	json_decref(request);
-	json_decref(results);
+	
+	//forming of the response
+	response = json_object();
+	json_object_set_new(response,"code", json_integer(code));
+	if (!code)
+		json_object_set(response,"results", results);
+	if ( json_dumpfd(response,connection_sock,JSON_INDENT(1)) < 0 ){
+		fprintf(stderr, "error: can't write to socket\n");
+		json_decref(response);
+		break;
 	}
+	json_array_clear(results);
+	json_decref(response);
+} // while(1)
+	json_decref(results);
 }

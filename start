@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 
+
 if [[ $# -ne 1 ]]; then
     echo "Usage: ./start tcp_serv_port_num"
     exit 1
 fi
+
+#make clean 2>&1 >/dev/null
+make 
+
 ./tcp_server $1 &
 ./tcp_client $1
+
+ps | grep tcp_server | awk '{print $1}' | xargs kill
