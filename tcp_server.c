@@ -118,7 +118,8 @@ while (1){
 	code = 0;
 	request = json_loadfd(connection_sock, JSON_DISABLE_EOF_CHECK, 0);
 	if (!request){
-		fprintf(stderr, "error: can't read from socket");
+		fprintf(stderr,
+		"error: can't read from socket or (?) connection closed\n");
 		break;
 	}
 	if (!json_is_object(request)){

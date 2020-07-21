@@ -7,7 +7,9 @@ if [[ $# -ne 1 ]]; then
 fi
 
 #make clean 2>&1 >/dev/null
-make 
+if ! [ -x ./tcp_server ]; then
+	make 
+fi
 
 ./tcp_server $1 & 
 ./tcp_client $1
