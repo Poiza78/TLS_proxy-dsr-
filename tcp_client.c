@@ -16,10 +16,10 @@ int main(int argc, const char** argv)
 		fprintf(stderr, "Usage: ./tcp_client port_num\n");
                 exit(EXIT_FAILURE);
         }
-	int client_sock;
-	client_sock = make_socket(INADDR_LOOPBACK, argv[1], CLIENT);
-	process_client(client_sock);
-	close(client_sock);
+	int server_sock;
+	server_sock = make_socket(INADDR_LOOPBACK, argv[1], CLIENT);
+	process_client(server_sock);
+	close(server_sock);
 	exit(EXIT_SUCCESS);
 }
 
