@@ -7,7 +7,7 @@ all: tcp_server tcp_client tls_server
 tcp_server: tcp_server.o connection.o
 	gcc tcp_server.o connection.o -o tcp_server -ljansson
 
-tcp_server: tls_server.o connection.o
+tls_server: tls_server.o connection.o
 	gcc tls_server.o connection.o -o tls_server -lssl -lcrypto
 
 tcp_client: tcp_client.o connection.o

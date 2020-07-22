@@ -8,9 +8,7 @@
 void error(const char* err_msg);
 int make_socket(int ip, const char* port, int type);
 
-//TODO
-//SSL_CTX* init_CTX(SSL_METHOD *(*method)(void)){}
-//void configure_cert(SSL_CTX* ctx, char* cert, char* key){}
-//
+SSL_CTX* init_CTX(SSL_METHOD *(*TLS_method)(void), char *cert, char *key)
+void verificate(SSL *ssl)
 
 #endif
