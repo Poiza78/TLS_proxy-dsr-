@@ -61,7 +61,7 @@ static void calculation(int sock, json_t* params, json_t* expressions)
 		json_decref(response);
 		return;
 	}
-	code = json_object_get(response, "code");	
+	code = json_object_get(response, "code");
 	if (json_integer_value(code)){
 		fprintf(stderr,"error code: %d\n", json_integer_value(code));
 		json_decref(response);

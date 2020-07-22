@@ -24,7 +24,7 @@ int main(int argc, const char** argv){
 		if (client_sock < 0)
 			error("accept");
 		process_server(client_sock);
-		close(client_sock); 
+		close(client_sock);
 	}
 	exit(EXIT_SUCCESS);
 }
@@ -42,7 +42,7 @@ static int pop(void)
 }
 
 static void substitute(json_t* params, char* expression)
-{	
+{
 	const char *var;
 	json_t *value;
 	json_object_foreach(params, var, value)
@@ -70,12 +70,12 @@ static void exp_to_rpn(char* expression)
 				rpn[j++] = pop();
 			pop(); // remove (
 			break;
-		default: 
+		default:
 			if (isdigit(token)){
 				rpn[j++] = token;
 				rpn[j++] = ' ';
 			}
-		}	
+		}
 	while (top+1)
 		rpn[j++] = pop();
 	rpn[j] = '\0';
@@ -94,9 +94,9 @@ static int calculate(char* rpn)
 			push(pop() * pop());
 			break;
 		default:
-			if (isdigit(token)) 
+			if (isdigit(token))
 				push(token - '0');
-	}	
+	}
 	return pop();
 }
 /*
@@ -157,7 +157,7 @@ while (1){
 		json_array_append_new(results, json_string(buf));
 	}
 	json_decref(request);
-	
+
 	//forming of the response
 	response = json_object();
 	json_object_set_new(response,"code", json_integer(code));

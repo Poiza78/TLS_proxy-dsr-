@@ -20,7 +20,7 @@ int make_socket(int ip, const char* port, int type)
 	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 		error("socket");
 
-	memset(&addr,0, sizeof(addr));	
+	memset(&addr,0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons (atoi(port));
 	addr.sin_addr.s_addr = htonl (ip);
@@ -37,7 +37,7 @@ int make_socket(int ip, const char* port, int type)
 			error ("connect");
 		break;
 	}
-  	return sock;
+	return sock;
 }
 
 void TLS_error()
@@ -62,15 +62,15 @@ SSL_CTX* init_CTX(SSL_METHOD *(*TLS_method)(void), char *cert, char *key)
 		TLS_error();
 	if ( SSL_CTX_use_certificate_file(ctx, cert, SSL_FILETYPE_PEM) <= 0 )
 		TLS_error();
-    	if ( SSL_CTX_use_PrivateKey_file(ctx, key, SSL_FILETYPE_PEM) <= 0 )
+	if ( SSL_CTX_use_PrivateKey_file(ctx, key, SSL_FILETYPE_PEM) <= 0 )
 		TLS_error();
-    	if ( !SSL_CTX_check_private_key(ctx)) {
-        	fprintf(stderr, "Private key does not match the public certificate\n");
-        	exit(EXIT_FAILURE);
-    	}
+	if ( !SSL_CTX_check_private_key(ctx)) {
+		fprintf(stderr, "Private key does not match the public certificate\n");
+	exit(EXIT_FAILURE);
+	}
 	// cannot fail
 	// second flag ignored on client side 
-	SSL_CXT_set_verify(ctx, 
+	SSL_CXT_set_verify(ctx,
 		SSL_FERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, 0);
 
 	return ctx;
