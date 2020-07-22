@@ -10,6 +10,7 @@ int make_socket(int ip, const char* port, int type);
 
 //TODO
 //SSL_CTX* init_CTX(SSL_METHOD *(*method)(void)){}
-//void configure_cert(SSL_CTX* ctx, char* file, char* key){}
+//void configure_cert(SSL_CTX* ctx, char* cert, char* key){}
+//
 
 #endif
