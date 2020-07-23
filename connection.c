@@ -51,9 +51,9 @@ void TLS_error()
 * resources that it needs so no explicit initialisation is required.
 * Similarly it will also automatically deinitialise as required.
 */
-SSL_CTX* init_CTX(SSL_METHOD *(*TLS_method)(void), char *cert, char *key)
+SSL_CTX* init_CTX(SSL_METHOD *(*TLS_method)(void), const char *cert, const char *key)
 {
-	const SSH_METHOD *method;
+	const SSL_METHOD *method;
 	SSL_CTX *ctx;
 
 	method = TLS_method();
@@ -68,10 +68,9 @@ SSL_CTX* init_CTX(SSL_METHOD *(*TLS_method)(void), char *cert, char *key)
 		fprintf(stderr, "Private key does not match the public certificate\n");
 	exit(EXIT_FAILURE);
 	}
-	// cannot fail
 	// second flag ignored on client side 
-	SSL_CXT_set_verify(ctx,
-		SSL_FERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, 0);
+	SSL_CTX_set_verify(ctx,
+		SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, 0);
 
 	return ctx;
 }
