@@ -8,6 +8,8 @@
 #include <jansson.h>
 #include "connection.h"
 
+#define VAR_SIZE 10
+
 static void process_client(int sock);
 
 int main(int argc, const char** argv)
@@ -25,11 +27,17 @@ int main(int argc, const char** argv)
 
 static void set(char* line, json_t* params)
 {
-	char var[2];
-	var[0] = *(line+4);
-	var[1] = '\0';
+	char var[VAR_SIZE];
+	int i=0;
+	while (isalpha(line[i+4])){
+		var[i] = line[i+4];
+		i++;
+	}
+	var[i] = '\0';
 	char* value = (strchr(line, '=')+1);
-	json_object_set_new(params, var, json_integer(atoi(value)));
+	if (atoi(value))
+		json_object_set_new(params, var, json_string(value));
+	else fprintf(stderr, "Wrong value\n");
 }
 static void add(char* line, json_t* expressions)
 {
@@ -37,6 +45,10 @@ static void add(char* line, json_t* expressions)
 }
 static void calculation(int sock, json_t* params, json_t* expressions)
 {
+	if (!json_array_size(expressions)){
+		fprintf(stderr, "Nothing to calculate\n");
+		return;
+	}
 	json_t *request, *response, *code, *results;
 	json_error_t error;
 	request = json_object();
@@ -61,8 +73,8 @@ static void calculation(int sock, json_t* params, json_t* expressions)
 		json_decref(response);
 		return;
 	}
-	code = json_object_get(response, "code");	
-	if (json_integer_value(code)){
+	code = json_object_get(response, "code");
+	if (json_integer_value(code) > 1){
 		fprintf(stderr,"error code: %d\n", json_integer_value(code));
 		json_decref(response);
 		return;
@@ -138,8 +150,9 @@ static void process_client(int sock)
 			return;
 		case WRONG:
 			fprintf(stderr, "unknown command\n");
-			continue;
 		}
 		free(line);
 	}
+	json_decref(params);
+	json_decref(expressions);
 }

@@ -11,7 +11,7 @@ if ! [ -x ./tcp_server ]; then
 	make 
 fi
 
-./tcp_server $1 & 
+./tcp_server $1 &
 ./tcp_client $1
 
-ps | grep tcp_server | cut -d ' ' -f 2 | xargs kill
+ps | grep tcp_server | awk '{print $1}' | xargs kill
