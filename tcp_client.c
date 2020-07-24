@@ -146,9 +146,10 @@ static void process_client(int sock)
 			fprintf(stderr, "unknown command\n");
 			break;
 		case EXIT:
-			goto exit;
+			goto exit;	// goto instead of break because of 
+					// nested switch
 		}
-		free(line);
+		free(line); // must have inside each iteration
 	}
 	exit:
 	free(line);

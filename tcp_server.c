@@ -140,6 +140,7 @@ static void process_server(int connection_sock)
 	json_t *request, *params, *expressions, *response, *results;
 	json_error_t error;
 	results = json_array();
+	response = json_object();
 
 while (1){
 	code = 0;
@@ -189,17 +190,17 @@ while (1){
 	json_decref(request);
 
 	//forming of the response
-	response = json_object();
 	json_object_set_new(response,"code", json_integer(code));
-	if (code < 2)// if results exist
+	if (json_array_size(results))
 		json_object_set(response,"results", results);
 	if (json_dumpfd(response,connection_sock,JSON_INDENT(1)) < 0){
 		fprintf(stderr, "error: can't write to socket\n");
-		json_decref(response);
 		break;
 	}
+
 	json_array_clear(results);
-	json_decref(response);
+	json_object_clear(response);
 } // while(1)
 	json_decref(results);
+	json_decref(response);
 }
