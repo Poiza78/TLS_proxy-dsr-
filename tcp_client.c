@@ -72,10 +72,6 @@ static void calculation(int sock, json_t* params, json_t* expressions)
 		goto response_error;
 	}
 	code = json_object_get(response, "code");
-	if (!json_is_object(code)){
-		fprintf(stderr, "error: code isn't an object\n");
-		goto response_error;
-	}
 	if (json_integer_value(code) > 1){
 		fprintf(stderr,"error code: %d\n", json_integer_value(code));
 		goto response_error;
