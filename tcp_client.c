@@ -34,8 +34,8 @@ static void set(char* line, json_t* params)
 		i++;
 	}
 	var[i] = '\0';
-	char* value = (strchr(line, '=')+1);
-	if (atoi(value))
+	char* value = strchr(line, '=');
+	if (value && atoi(++value))
 		json_object_set_new(params, var, json_string(value));
 	else fprintf(stderr, "Wrong value\n");
 }
@@ -49,52 +49,51 @@ static void calculation(int sock, json_t* params, json_t* expressions)
 		fprintf(stderr, "Nothing to calculate\n");
 		return;
 	}
+
 	json_t *request, *response, *code, *results;
 	json_error_t error;
-	request = json_object();
 
+	request = json_object();
 	json_object_set(request, "params", params);
 	json_object_set(request, "expressions", expressions);
+
 	if (json_dumpfd(request, sock, JSON_INDENT(1)) < 0){
 		fprintf(stderr, "error: can't write to socket\n");
-		json_decref(request);
-		return;
+		goto request_error;
 	}
-	json_decref(request);
-	json_array_clear(expressions);
 
 	response = json_loadfd(sock, JSON_DISABLE_EOF_CHECK, &error);
 	if (!response){
 		fprintf(stderr, "error: %s\n", error.text);
-		return;
+		goto request_error;
 	}
 	if (!json_is_object(response)){
 		fprintf(stderr, "error: response isn't an object\n");
-		json_decref(response);
-		return;
+		goto response_error;
 	}
 	code = json_object_get(response, "code");
 	if (json_integer_value(code) > 1){
 		fprintf(stderr,"error code: %d\n", json_integer_value(code));
-		json_decref(response);
-		return;
+		goto response_error;
 	}
 	results = json_object_get(response, "results");
 	if (!json_is_array(results)){
 		fprintf(stderr, "error: results isn't an array\n");
-		json_decref(response);
-		return;
+		goto response_error;
 	}
 	for (int i=0; i< json_array_size(results); ++i){
 		json_t *result = json_array_get(results,i);
 		if (!json_is_string(result)){
 			fprintf(stderr, "error: result isn't a string\n");
-			json_decref(response);
-			return;
+			goto response_error;
 		}
 		printf("%s\n", json_string_value(result));
 	}
+	json_array_clear(expressions);
+	response_error:
 	json_decref(response);
+	request_error:
+	json_decref(request);
 }
 
 enum {

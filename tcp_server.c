@@ -72,7 +72,6 @@ static void exp_to_rpn(char* expression)
 	while (expression[i] != '\0'){
 		switch (expression[i]){
 		case '+':
-			if (top+1)
 			while (stack[top] == '+'
 			     ||stack[top] == '*'){
 				rpn[j++] = pop();
@@ -172,9 +171,8 @@ while (1){
 		json_t *exp = json_array_get(expressions,i);
 		if (!json_is_string(exp)){
 			fprintf(stderr,"error: expression isn't a string\n");
-			json_decref(request);
 			code = 2;
-			break;
+			goto request_error;
 		}
 		exp_string = json_string_value(exp);
 		strcpy(tmp,exp_string);
@@ -195,7 +193,7 @@ while (1){
 	json_object_set_new(response,"code", json_integer(code));
 	if (code < 2)// if results exist
 		json_object_set(response,"results", results);
-	if ( json_dumpfd(response,connection_sock,JSON_INDENT(1)) < 0 ){
+	if (json_dumpfd(response,connection_sock,JSON_INDENT(1)) < 0){
 		fprintf(stderr, "error: can't write to socket\n");
 		json_decref(response);
 		break;
