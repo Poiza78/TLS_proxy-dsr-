@@ -146,16 +146,16 @@ static void process_client(int sock)
 		case CALC:
 			calculation(sock, params,expressions);
 			break;
-		case EXIT:
-			free(line);
-			json_decref(params);
-			json_decref(expressions);
-			return;
 		case WRONG:
 			fprintf(stderr, "unknown command\n");
+			break;
+		case EXIT:
+			goto exit;
 		}
 		free(line);
 	}
+	exit:
+	free(line);
 	json_decref(params);
 	json_decref(expressions);
 }
