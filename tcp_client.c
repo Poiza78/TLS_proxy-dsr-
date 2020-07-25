@@ -10,6 +10,7 @@
 
 #define VAR_SIZE 10
 #define INDENT 4
+
 static void process_client(int sock);
 
 int main(int argc, const char** argv)
