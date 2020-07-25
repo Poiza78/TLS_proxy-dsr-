@@ -23,7 +23,7 @@ tls_server.o: tls_server.c
 	gcc -c tls_server.c -o tls_server.o 
 
 tcp_client.o: tcp_client.c 
-	gcc -c tcp_client.c -o tcp_client.o 
+	gcc -c -g tcp_client.c -o tcp_client.o 
 
 clean: 
 	rm *.o tcp_server tcp_client tls_server

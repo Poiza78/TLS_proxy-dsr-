@@ -58,17 +58,49 @@ static int substitute(json_t* params, char* expression)
 				strcat(buf, value_string);
 				j += strlen(value_string);
 			} else return 1; // no required param
+		} else if (isspace(expression[i])){ // don't copy whitespaces
+			i++;
 		} else buf[j++] = expression[i++];
 	}
 	buf[j]='\0';
 	strcpy(expression,buf);
 	return 0;
 }
+
+static int is_right_exp(char* expression)
+{
+	//check grammatics
+	if (expression[0] != '('
+	&& !isdigit(expression[0]))
+		return 0;
+	int count = (expression[0] == '(');
+	for (int i=1; i< strlen(expression); ++i){
+		switch(expression[i]){
+		case ')':
+			count--;
+		case '+':
+		case '*':
+			if (!isdigit(expression[i-1])
+			&& expression[i-1] != ')')
+				return 0;
+			break;
+		case '(':
+			count++;
+			if (expression[i-1] !='+'
+			&& expression[i-1] !='*'
+			&& expression[i-1] !='(')
+				return 0;
+			break;
+		}
+	}
+	if (count) return 0;
+	return 1;
+}
 static void exp_to_rpn(char* expression)
 {
 	//shunting_yard
 	char rpn[BUF_SIZE];
-	int token, i=0, j=0;
+	int i=0,j=0;
 	while (expression[i] != '\0'){
 		switch (expression[i]){
 		case '+':
@@ -87,12 +119,11 @@ static void exp_to_rpn(char* expression)
 				rpn[j++] = ' ';
 			}
 			pop(); // remove (
-			break;
-		case ' ':
+			i++;
 			break;
 		default:
 			do { rpn[j++] = expression[i++];
-			} while (isdigit(expression[i])); // +minus
+			} while (isdigit(expression[i]));
 			rpn[j++] = ' ';
 		}
 	}
@@ -125,14 +156,6 @@ static int calculate(char* rpn)
 	} while (token = strtok(NULL, " "));
 	return pop();
 }
-/*
-static void json_error(const char* err_msg, int* code, int code_value)
-{
-	fprintf(stderr, "error: can't read from socket");
-	json_decref(request);
-	*code = code_value;
-}
-*/
 
 static void process_server(int connection_sock)
 {
@@ -166,7 +189,7 @@ while (1){
 		code = 2;
 		goto request_error;
 	}
-	for (int i=0; i < json_array_size(expressions) && !code ; ++i){
+	for (int i=0; i < json_array_size(expressions); ++i){
 		char buf[BUF_SIZE], tmp[BUF_SIZE];
 		const char* exp_string;
 		json_t *exp = json_array_get(expressions,i);
@@ -179,11 +202,15 @@ while (1){
 		strcpy(tmp,exp_string);
 		if (substitute(params, tmp)){
 			code = 1;
-			sprintf(buf, "%s = %s", exp_string,"not enough params");
+			strcpy(tmp, "not enough params");
+		} else if (!is_right_exp(tmp)){
+			code = 1;
+			strcpy(tmp, "wrong expression");
 		} else {
 			exp_to_rpn(tmp);
-			sprintf(buf,"%s = %d", exp_string, calculate(tmp));
+			sprintf(tmp, "%d", calculate(tmp));
 		}
+		sprintf(buf,"%s = %s", exp_string, tmp);
 		json_array_append_new(results, json_string(buf));
 	}
 	request_error:

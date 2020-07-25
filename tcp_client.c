@@ -9,7 +9,7 @@
 #include "connection.h"
 
 #define VAR_SIZE 10
-
+#define INDENT 4
 static void process_client(int sock);
 
 int main(int argc, const char** argv)
@@ -29,8 +29,8 @@ static void set(char* line, json_t* params)
 {
 	char var[VAR_SIZE];
 	int i=0;
-	while (isalpha(line[i+4])){
-		var[i] = line[i+4];
+	while (isalpha(line[i+INDENT])){
+		var[i] = line[i+INDENT];
 		i++;
 	}
 	var[i] = '\0';
@@ -39,9 +39,20 @@ static void set(char* line, json_t* params)
 		json_object_set_new(params, var, json_string(value));
 	else fprintf(stderr, "Wrong value\n");
 }
+static int is_right_symbols(char *line)
+{
+	for (int i=0; i<strlen(line); ++i)	// line isn't null terminated
+		if (!isalnum(line[i])
+		&& (line[i] < '(' || line[i] > '+')	// ()*+ placed in a row
+		&& line[i] != ' ')			// in ascii table
+			return 0;
+	return 1;
+}
 static void add(char* line, json_t* expressions)
 {
-	json_array_append_new(expressions, json_string(line+4));
+	if (is_right_symbols(line+INDENT))
+		json_array_append_new(expressions, json_string(line+INDENT));
+	else fprintf(stderr, "Wrong symbols\n");
 }
 static void calculation(int sock, json_t* params, json_t* expressions)
 {
@@ -72,9 +83,8 @@ static void calculation(int sock, json_t* params, json_t* expressions)
 		goto response_error;
 	}
 	code = json_object_get(response, "code");
-	if (json_integer_value(code) > 1){
+	if (json_integer_value(code)){
 		fprintf(stderr,"error code: %d\n", json_integer_value(code));
-		goto response_error;
 	}
 	results = json_object_get(response, "results");
 	if (!json_is_array(results)){
@@ -108,9 +118,9 @@ static int identify(const char* line)
 {
 	if (!strncmp(line, "exit", 4))
 		return EXIT;
-	if (!strncmp(line, "set ", 4))
+	if (!strncmp(line, "set ", 4) && strlen(line)>4)
 		return SET;
-	if (!strncmp(line, "add ", 4))
+	if (!strncmp(line, "add ", 4) && strlen(line)>4)
 		return ADD;
 	if (!strncmp(line, "calculate", 9))
 		return CALC;
