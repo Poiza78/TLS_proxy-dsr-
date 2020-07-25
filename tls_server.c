@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
 
 
 
@@ -46,10 +47,29 @@ int main(int argc, const char** argv)
 			ERR_print_errors_fp(stderr);
 			goto TLS_error;
 		}
-		SSL_write(ssl, "line\nline", strlen("line\nline"));
-		//while(1){
-			//TODO READ/WRITE
-		//}
+		if (!verificate(ssl)){ // unused
+			fprintf(stderr, "verification error\n");
+			goto TLS_error;
+		}
+		while(1){
+			memset(buf,0, sizeof(buf));
+			if (SSL_read(ssl, buf, BUF_SIZE) <= 0){
+				ERR_print_errors_fp(stderr);
+				goto TLS_error;
+			}
+			if (send(tcp_serv_sock, buf, strlen(buf), 0) < 0){
+				error("send");
+				goto TLS_error;
+			}
+			if ((len = recv(tcp_serv_sock, buf, BUF_SIZE, 0)) < 0){
+				error("recv");
+				goto TLS_error;
+			}
+			if (SSL_write(ssl, buf, len) <= 0){
+				ERR_print_errors_fp(stderr);
+				goto TLS_error;
+			}
+		}
 		TLS_error:
 		SSL_free(ssl);
 		close(tls_client_sock);

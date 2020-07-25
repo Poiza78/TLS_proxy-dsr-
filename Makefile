@@ -19,7 +19,7 @@ tcp_server.o: tcp_server.c
 	$(CC) -c -g tcp_server.c -o tcp_server.o 
 
 tls_server.o: tls_server.c 
-	$(CC) -c tls_server.c -o tls_server.o 
+	$(CC) -c -g tls_server.c -o tls_server.o 
 
 tcp_client.o: tcp_client.c 
 	$(CC) -c -g tcp_client.c -o tcp_client.o 
