@@ -13,6 +13,6 @@ int make_socket(int ip, const char* port, int type);
 
 SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void),
 		const char *cert, const char *key);
-void verificate(SSL *ssl);
+int verificate(SSL *ssl);
 
 #endif

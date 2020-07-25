@@ -74,7 +74,14 @@ SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void), const char *cert, const
 
 	return ctx;
 }
-void verificate(SSL *ssl)
+int verificate(SSL *ssl)
 {
-	//TODO
+	X509* cert = SSL_get_peer_certificate(ssl);
+	if (cert) X509_free(cert);  // unneeded
+	if (!cert) return 0;
+
+	int res = SSL_get_verify_result(ssl);
+	if(!(X509_V_OK == res)) return 0;
+
+	return 1;
 }
