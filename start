@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 
-if [[ $# -ne 1 ]]; then
-    echo "Usage: ./start tcp_serv_port_num"
+if [[ $# -ne 2 ]]; then
+    echo "Usage: ./start tcp_serv_port_num tls_serv_port_num" 
     exit 1
 fi
 
@@ -12,6 +12,7 @@ if ! [ -x ./tcp_server ]; then
 fi
 
 ./tcp_server $1 &
-./tcp_client $1
+./tls_server $1 $2 &
+openssl s_client -cert client_cert/tls_client.crt -key client_cert/tls_client.key -connect 127.1:$2
 
-ps | grep tcp_server | awk '{print $1}' | xargs kill
+ps | grep *_server | awk '{print $1}' | xargs kill
