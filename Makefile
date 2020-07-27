@@ -13,7 +13,7 @@ tcp_client: tcp_client.o connection.o
 	$(CC) tcp_client.o connection.o -o tcp_client $(LIBS)
 
 connection.o: connection.c connection.h
-	$(CC) -c connection.c -o connection.o 
+	$(CC) -c -g connection.c -o connection.o 
 
 tcp_server.o: tcp_server.c 
 	$(CC) -c -g tcp_server.c -o tcp_server.o 

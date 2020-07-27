@@ -80,7 +80,7 @@ int verificate(SSL *ssl)
 	if (!cert) return 0;
 
 	int res = SSL_get_verify_result(ssl);
-	if(!(X509_V_OK == res)) return 0;
+	if (res != X509_V_OK) return 0;
 
 	return 1;
 }
