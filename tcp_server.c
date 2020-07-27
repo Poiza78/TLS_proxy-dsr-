@@ -21,8 +21,10 @@ int main(int argc, const char** argv){
 	server_sock = make_socket(INADDR_ANY, argv[1], SERVER);
 	while(1){
 		client_sock = accept(server_sock, 0,0);
-		if (client_sock < 0)
-			error("accept");
+		if (client_sock < 0){
+			perror("accept");
+			continue;
+		}
 		process_server(client_sock);
 		close(client_sock);
 	}
@@ -71,6 +73,7 @@ static int is_right_exp(char* expression)
 {
 	//check grammatics
 	if (expression[0] != '('
+	&& expression[0] != '-'
 	&& !isdigit(expression[0]))
 		return 0;
 	int count = (expression[0] == '(');

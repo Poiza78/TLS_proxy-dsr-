@@ -37,8 +37,10 @@ int main(int argc, const char** argv)
 		int len;
 
 		tls_client_sock = accept(tls_serv_sock, 0, 0);
-		if (tls_client_sock < 0)
-			error("accept");
+		if (tls_client_sock < 0){
+			perror("accept");
+			continue;
+		}
 
 		ssl = SSL_new(ctx);
 		SSL_set_fd(ssl, tls_client_sock);
@@ -47,7 +49,7 @@ int main(int argc, const char** argv)
 			ERR_print_errors_fp(stderr);
 			goto TLS_error;
 		}
-		if (!verificate(ssl)){ // unused
+		if (!verificate(ssl)){
 			fprintf(stderr, "verification error\n");
 			goto TLS_error;
 		}
@@ -58,11 +60,11 @@ int main(int argc, const char** argv)
 				goto TLS_error;
 			}
 			if (send(tcp_serv_sock, buf, strlen(buf), 0) < 0){
-				error("send");
+				perror("send");
 				goto TLS_error;
 			}
 			if ((len = recv(tcp_serv_sock, buf, BUF_SIZE, 0)) < 0){
-				error("recv");
+				perror("recv");
 				goto TLS_error;
 			}
 			if (SSL_write(ssl, buf, len) <= 0){
