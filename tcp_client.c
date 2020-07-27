@@ -26,21 +26,44 @@ int main(int argc, const char** argv)
 	exit(EXIT_SUCCESS);
 }
 
+static int is_right_set(char *line)
+{
+	char *middle = strchr(line, '=');
+	char *end = line + strlen(line);
+
+	if (!middle) return 0;
+
+	while (line != middle)
+		if (!isalpha(*line++))
+			return 0;
+
+	++line; // skip '='
+
+	if (*line != '-' && !isdigit(*line))
+		return 0;
+	while (line != end)
+		if (!isdigit(*line++))
+			return 0;
+	return 1;
+}
+
 static void set(char* line, json_t* params)
 {
-	char var[VAR_SIZE];
-	int i=0;
-	while (isalpha(line[i+INDENT])){
-		var[i] = line[i+INDENT];
-		i++;
-	}
-	var[i] = '\0';
-	char* value = strchr(line, '=');
-	if (value && atoi(++value))
-		json_object_set_new(params, var, json_string(value));
-	else fprintf(stderr, "Wrong value\n");
+	line += INDENT;
+	if (is_right_set(line)){
+		char var[VAR_SIZE];
+		char *value;
+		int i=0;
+		do {var[i] = line[i];
+		} while (isalpha(line[++i]));
+		var[i] = '\0';
+
+		value = strchr(line, '=');
+		json_object_set_new(params, var, json_string(++value));
+	} else
+		fprintf(stderr, "Wrong value\n");
 }
-static int is_right_symbols(char *line)
+static int is_right_add(char *line)
 {
 	for (int i=0; i<strlen(line); ++i)	// line isn't null terminated
 		if (!isalnum(line[i])
@@ -51,8 +74,9 @@ static int is_right_symbols(char *line)
 }
 static void add(char* line, json_t* expressions)
 {
-	if (is_right_symbols(line+INDENT))
-		json_array_append_new(expressions, json_string(line+INDENT));
+	line += INDENT;
+	if (is_right_add(line))
+		json_array_append_new(expressions, json_string(line));
 	else fprintf(stderr, "Wrong symbols\n");
 }
 static void calculation(int sock, json_t* params, json_t* expressions)
