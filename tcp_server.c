@@ -45,9 +45,8 @@ static int pop(void)
 
 static int substitute(json_t* params, char* expression)
 {
-	char buf[BUF_SIZE], var[BUF_SIZE];
-	const char  *value_string;
-	int i=0, j=0, k;
+	char buf[BUF_SIZE], var[BUF_SIZE], value_string[BUF_SIZE];
+	int i=0, j=0, k, value;
 	memset(buf,0, sizeof(buf));
 	while (expression[i] != '\0'){
 		if (isalpha(expression[i])){
@@ -55,8 +54,9 @@ static int substitute(json_t* params, char* expression)
 			do { var[k++] = expression[i++];
 			} while (isalpha(expression[i]));
 			var[k] = '\0';
-			if (value_string =
-				json_string_value(json_object_get(params,var))){
+			value = json_integer_value(json_object_get(params,var));
+			if (value){
+				sprintf(value_string, "%d", value);
 				strcat(buf, value_string);
 				j += strlen(value_string);
 			} else return 1; // no required param
@@ -137,7 +137,7 @@ static void exp_to_rpn(char* expression)
 }
 static int calculate(char* rpn)
 {
-	int n1, n2, i = 0;
+	int n1, n2;
 	char* token;
 	token = strtok(rpn, " ");
 	do {
@@ -154,7 +154,7 @@ static int calculate(char* rpn)
 			continue;
 		}
 		push(atoi(token));
-	} while (token = strtok(NULL, " "));
+	} while ((token = strtok(NULL, " ")));
 	return pop();
 }
 

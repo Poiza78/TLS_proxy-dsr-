@@ -28,7 +28,7 @@ int main(int argc, const char** argv)
 
 static int is_right_set(char *line)
 {
-	char *middle = strchr(line, '=');
+	char *middle = strpbrk(line," =");
 	char *end = line + strlen(line);
 
 	if (!middle) return 0;
@@ -37,10 +37,17 @@ static int is_right_set(char *line)
 		if (!isalpha(*line++))
 			return 0;
 
-	++line; // skip '='
+	//cannot increment inside condition
+	//because there is can be no whitespaces
+	while (*line == ' ') line++;
+	if (*line == '=')
+		line++;
+	else return 0;
+	while (*line == ' ') line++;
 
-	if (*line != '-' && !isdigit(*line))
-		return 0;
+	if (*line == '-' || isdigit(*line))
+		line++;
+	else return 0;
 	while (line != end)
 		if (!isdigit(*line++))
 			return 0;
@@ -59,7 +66,7 @@ static void set(char* line, json_t* params)
 		var[i] = '\0';
 
 		value = strchr(line, '=');
-		json_object_set_new(params, var, json_string(++value));
+		json_object_set_new(params, var, json_integer(atoi(++value)));
 	} else
 		fprintf(stderr, "Wrong value\n");
 }
