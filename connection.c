@@ -49,7 +49,6 @@ void TLS_error()
 /*
 * As of version 1.1.0 OpenSSL will automatically allocate all 
 * resources that it needs so no explicit initialisation is required.
-* Similarly it will also automatically deinitialise as required.
 */
 SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void), const char *cert, const char *key)
 {
