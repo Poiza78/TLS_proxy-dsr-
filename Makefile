@@ -1,17 +1,17 @@
 CC = gcc
-LIBS = -ljansson -lreadline -lssl -lcrypto
+LDLIBS = -ljansson -lreadline -lssl -lcrypto
 exe = tcp_server tcp_client tls_server
 
 all : $(exe)
 
 tcp_server: tcp_server.o connection.o
-	$(CC) $^ -o $@ $(LIBS)
+	$(CC) $^ -o $@ $(LDLIBS)
 
 tls_server: tls_server.o connection.o
-	$(CC) $^ -o $@ $(LIBS)
+	$(CC) $^ -o $@ $(LDLIBS)
 
 tcp_client: tcp_client.o connection.o
-	$(CC) $^ -o $@ $(LIBS)
+	$(CC) $^ -o $@ $(LDLIBS)
 
 
 %.o : CFLAGS = -g
