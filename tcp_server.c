@@ -71,39 +71,40 @@ static int substitute(json_t* params, char* expression)
 
 static int is_right_exp(char* expression)
 {
-	//check grammatics
+	int prev, count = (expression[0] == '('), i = 1;
+
 	if (expression[0] != '('
 	&& expression[0] != '-'
 	&& !isdigit(expression[0]))
 		return 0;
-	int count = (expression[0] == '(');
-	for (int i=1; i< strlen(expression); ++i){
+
+	while ((prev = expression[i++]) != '\0'){
 		switch(expression[i]){
 		case ')':
 			count--;
 		case '+':
 		case '*':
-			if (!isdigit(expression[i-1])
-			&& expression[i-1] != ')')
+			if (!isdigit(prev)
+			&& prev != ')')
 				return 0;
 			break;
 		case '(':
 			count++;
-			if (expression[i-1] !='+'
-			&& expression[i-1] !='*'
-			&& expression[i-1] !='(')
+			if (prev !='+'
+			&& prev !='*'
+			&& prev !='(')
 				return 0;
 			break;
 		}
 	}
-	if (count) return 0;
-	return 1;
+	return (!count);
 }
 static void exp_to_rpn(char* expression)
 {
 	//shunting_yard
 	char rpn[BUF_SIZE];
 	int i=0,j=0;
+
 	while (expression[i] != '\0'){
 		switch (expression[i]){
 		case '+':
@@ -142,7 +143,7 @@ static int calculate(char* rpn)
 	int n1, n2, i = 0;
 	char* token;
 	token = strtok(rpn, " ");
-	do{
+	do {
 		if (!strcmp(token,"+")){
 			n1 = pop();
 			n2 = pop();
