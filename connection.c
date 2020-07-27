@@ -50,7 +50,8 @@ void TLS_error()
 * As of version 1.1.0 OpenSSL will automatically allocate all 
 * resources that it needs so no explicit initialisation is required.
 */
-SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void), const char *cert, const char *key)
+SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void),
+		const char *cert, const char *key)
 {
 	const SSL_METHOD *method;
 	SSL_CTX *ctx;
@@ -64,7 +65,7 @@ SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void), const char *cert, const
 	if ( SSL_CTX_use_PrivateKey_file(ctx, key, SSL_FILETYPE_PEM) <= 0 )
 		TLS_error();
 	if ( !SSL_CTX_check_private_key(ctx)) {
-		fprintf(stderr, "Private key does not match the public certificate\n");
+		fprintf(stderr, "Key does not match the certificate\n");
 		exit(EXIT_FAILURE);
 	}
 	// second flag ignored on client side 
