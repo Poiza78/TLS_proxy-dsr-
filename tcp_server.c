@@ -84,15 +84,12 @@ static int is_right_exp(char* expression)
 			count--;
 		case '+':
 		case '*':
-			if (!isdigit(prev)
-			&& prev != ')')
+			if (!isdigit(prev) && prev != ')')
 				return 0;
 			break;
 		case '(':
 			count++;
-			if (prev !='+'
-			&& prev !='*'
-			&& prev !='(')
+			if (prev !='+' && prev !='*' && prev !='(')
 				return 0;
 			break;
 		}
