@@ -75,7 +75,8 @@ static int is_right_add(char *line)
 	for (int i=0; i<strlen(line); ++i)	// line isn't null terminated
 		if (!isalnum(line[i])
 		&& (line[i] < '(' || line[i] > '+')	// ()*+ placed in a row
-		&& line[i] != ' ')			// in ascii table
+		&& line[i] != ' '			// in ascii table
+		&& line[i] != '-')
 			return 0;
 	return 1;
 }
@@ -160,7 +161,7 @@ static int identify(const char* line)
 }
 static void process_client(int sock)
 {
-	printf("\nYou can use: add, set, calculate, exit\n\n");
+	printf("\nYou can use: add(*,+), set, calculate, exit\n\n");
 	char* line;
 	int type;
 
