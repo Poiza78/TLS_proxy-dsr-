@@ -72,7 +72,7 @@ static void set(char* line, json_t* params)
 }
 static int is_right_add(char *line)
 {
-	if (!strpbrk(line,"+*")
+	if (!strpbrk(line,"+*"))
 		return 0;
 
 	for (int i=0; i<strlen(line); ++i)	// line isn't null terminated
