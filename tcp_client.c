@@ -100,7 +100,7 @@ static void calculation(int sock, json_t* params, json_t* expressions)
 	json_object_set(request, "params", params);
 	json_object_set(request, "expressions", expressions);
 
-	if (json_dumpfd(request, sock, JSON_INDENT(1)) < 0){
+	if (json_dumpfd(request, sock, 0) < 0){
 		fprintf(stderr, "error: can't write to socket\n");
 		goto request_error;
 	}
