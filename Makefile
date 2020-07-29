@@ -1,6 +1,6 @@
 CC = gcc
 LDLIBS = -ljansson -lreadline -lssl -lcrypto
-exe = tcp_server tcp_client tls_server
+exe = tcp_server tcp_client tls_server tls_client
 
 all : $(exe)
 
@@ -13,6 +13,8 @@ tls_server: tls_server.o connection.o
 tcp_client: tcp_client.o connection.o
 	$(CC) $^ -o $@ $(LDLIBS)
 
+tls_client: tls_client.o connection.o
+	$(CC) $^ -o $@ $(LDLIBS)
 
 %.o : CFLAGS = -g
 connection.o: connection.h
