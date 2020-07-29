@@ -10,6 +10,7 @@
 #define CERT "./server_cert/tls_server.crt"
 #define KEY "./server_cert/tls_server.key"
 #define CA "./server_cert/ca.crt"
+#define CN "tls_client"
 
 int main(int argc, const char** argv)
 {
@@ -22,11 +23,9 @@ int main(int argc, const char** argv)
 	SSL_CTX *ctx;
 	int tls_serv_sock, tcp_serv_sock, tls_client_sock;
 
-	tcp_serv_sock = make_socket(INADDR_LOOPBACK, argv[1], CLIENT);
 	tls_serv_sock = make_socket(INADDR_ANY, argv[2], SERVER);
 
-	ctx = init_CTX(TLSv1_2_server_method, CERT, KEY);
-	SSL_CTX_load_verify_locations(ctx, CA, CA);
+	ctx = init_CTX(TLSv1_2_server_method, CERT, KEY, CA);
 
 	while(1){
 		SSL *ssl;
@@ -46,10 +45,11 @@ int main(int argc, const char** argv)
 			ERR_print_errors_fp(stderr);
 			goto TLS_error;
 		}
-		if (!verificate(ssl)){
+		if (!verificate(ssl, CN)){
 			fprintf(stderr, "verification error\n");
 			goto TLS_error;
 		}
+		tcp_serv_sock = make_socket(INADDR_LOOPBACK, argv[1], CLIENT);
 		while(1){
 			memset(buf,0, sizeof(buf));
 			if (SSL_read(ssl, buf, BUF_SIZE) <= 0){
@@ -72,9 +72,9 @@ int main(int argc, const char** argv)
 		TLS_error:
 		SSL_free(ssl);
 		close(tls_client_sock);
+		close(tcp_serv_sock);
 	}
 	SSL_CTX_free(ctx);
-	close(tcp_serv_sock);
 	close(tls_serv_sock);
 	exit(EXIT_SUCCESS);
 }

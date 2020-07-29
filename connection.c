@@ -6,6 +6,7 @@
 #include <sys/socket.h> // socket(), bind(),..   ???
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <openssl/x509v3.h>
 
 void error(const char *err_msg)
 {
@@ -51,7 +52,7 @@ void TLS_error()
 * resources that it needs so no explicit initialisation is required.
 */
 SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void),
-		const char *cert, const char *key)
+		const char *cert, const char *key, const char *ca)
 {
 	const SSL_METHOD *method;
 	SSL_CTX *ctx;
@@ -71,17 +72,20 @@ SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void),
 	// second flag ignored on client side 
 	SSL_CTX_set_verify(ctx,
 		SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, 0);
+	SSL_CTX_load_verify_locations(ctx, ca, ca);
 
 	return ctx;
 }
-int verificate(SSL *ssl)
+int verificate(SSL *ssl, char *common_name)
 {
 	X509* cert = SSL_get_peer_certificate(ssl);
-	if (cert) X509_free(cert);  // unneeded
 	if (!cert) return 0;
 
 	int res = SSL_get_verify_result(ssl);
 	if (res != X509_V_OK) return 0;
 
-	return 1;
+	res = X509_check_host(cert, common_name, 0,0,0);
+	X509_free(cert);
+
+	return (res > 0);
 }

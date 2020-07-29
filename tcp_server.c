@@ -221,7 +221,7 @@ while (1){
 	json_object_set_new(response,"code", json_integer(code));
 	if (json_array_size(results))
 		json_object_set(response,"results", results);
-	if (json_dumpfd(response,connection_sock,JSON_INDENT(1)) < 0){
+	if (json_dumpfd(response,connection_sock,0) < 0){
 		fprintf(stderr, "error: can't write to socket\n");
 		break;
 	}
