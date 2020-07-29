@@ -23,9 +23,9 @@ int main(int argc, const char** argv)
 	SSL_CTX *ctx;
 	int tls_serv_sock, tcp_serv_sock, tls_client_sock;
 
-	tls_serv_sock = make_socket(INADDR_ANY, argv[2], SERVER);
-
 	ctx = init_CTX(TLSv1_2_server_method, CERT, KEY, CA);
+
+	tls_serv_sock = make_socket(INADDR_ANY, argv[2], SERVER);
 
 	while(1){
 		SSL *ssl;
