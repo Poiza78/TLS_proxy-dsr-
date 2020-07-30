@@ -43,97 +43,106 @@ static int pop(void)
 	return (top+1)?stack[top--]:0;
 }
 
-static int substitute(json_t* params, char* expression)
+static int get_number(char **expression)
 {
-	char buf[BUF_SIZE], var[BUF_SIZE], value_string[BUF_SIZE];
-	int i=0, j=0, k, value;
-	memset(buf,0, sizeof(buf));
-	while (expression[i] != '\0'){
-		if (isalpha(expression[i])){
-			k = 0;
-			do { var[k++] = expression[i++];
-			} while (isalpha(expression[i]));
-			var[k] = '\0';
-			value = json_integer_value(json_object_get(params,var));
-			if (value){
-				sprintf(value_string, "%d", value);
-				strcat(buf, value_string);
-				j += strlen(value_string);
-			} else return 1; // no required param
-		} else if (isspace(expression[i])){ // don't copy whitespaces
-			i++;
-		} else buf[j++] = expression[i++];
-	}
-	buf[j]='\0';
-	strcpy(expression,buf);
-	return 0;
+	return strtol(*expression, expression, 10);
+}
+static int get_param_value(char **expression, json_t *params)
+{
+	char var[BUF_SIZE];
+	int k = 0;
+	char *token = *expression;
+
+	do { var[k++] = *token++;
+	} while (isalpha(*token));
+	var[k] = '\0';
+
+	*expression = token;
+
+	return json_integer_value(json_object_get(params,var));
 }
 
-static int is_right_exp(char* expression)
-{
-	int prev, count = (expression[0] == '('), i = 1;
-
-	if (expression[0] != '('
-	&& expression[0] != '-'
-	&& !isdigit(expression[0]))
-		return 0;
-
-	while ((prev = expression[i++]) != '\0'){
-		switch(expression[i]){
-		case ')':
-			count--;
-		case '+':
-		case '*':
-			if (!isdigit(prev) && prev != ')')
-				return 0;
-			break;
-		case '(':
-			count++;
-			if (prev !='+' && prev !='*' && prev !='(')
-				return 0;
-			break;
-		}
-	}
-	return (!count);
-}
-static void exp_to_rpn(char* expression)
+enum {
+OPERATOR,
+CL_BR,
+OP_BR,
+NUMBER
+};
+static int exp_to_rpn(char* expression, json_t *params)
 {
 	//shunting_yard
-	char rpn[BUF_SIZE];
-	int i=0,j=0;
+	char rpn[BUF_SIZE], value_string[BUF_SIZE];
+	char *token;
+	int value;
+	int j=0, prev = -1;
 
-	while (expression[i] != '\0'){
-		switch (expression[i]){
+	token = expression;
+	memset(rpn, 0, sizeof rpn);
+	top = -1;
+	while (*token != '\0'){
+		switch (*token){
 		case '+':
-			while (stack[top] == '+'
-			     ||stack[top] == '*'){
+			if (OPERATOR == prev || OP_BR == prev) return 3;
+			while ( top >= 0
+			&& ('+' == stack[top] || '*' == stack[top])
+			&& '(' != stack[top]){
 				rpn[j++] = pop();
 				rpn[j++] = ' ';
 			}
+			push(*token++);
+			prev = OPERATOR;
+			break;
 		case '*':
+			if (OPERATOR == prev || OP_BR == prev) return 3;
+			while ( top >= 0
+			&&  '*' == stack[top]
+			&& '(' != stack[top]){
+				rpn[j++] = pop();
+				rpn[j++] = ' ';
+			}
+			prev = OPERATOR;
 		case '(':
-			push(expression[i++]);
+			if (NUMBER == prev || CL_BR == prev) return 3;
+			push(*token++);
+			prev = OP_BR;
 			break;
 		case ')':
-			while (stack[top] != '('){
+			if (OPERATOR == prev || OP_BR == prev) return 3;
+			while ('(' != stack[top]){
 				rpn[j++] = pop();
 				rpn[j++] = ' ';
+				if ( top < 0) return 4;
 			}
-			pop(); // remove (
-			i++;
+			if ('(' == stack[top]) pop();
+			prev = CL_BR;
+		case ' ':
+			token++;
 			break;
 		default:
-			do { rpn[j++] = expression[i++];
-			} while (isdigit(expression[i]));
+			if (NUMBER == prev || CL_BR == prev) return 3;
+			if (isdigit(*token) || '-' == *token)
+				value = get_number(&token);
+			else if (isalpha(*token)){
+				value = get_param_value(&token, params);
+				if (!value) return 5;
+			}
+			sprintf(value_string, "%d", value);
+			strcat(rpn, value_string);
+			j += strlen(value_string);
 			rpn[j++] = ' ';
+			prev = NUMBER;
 		}
 	}
-	while (top+1){
+	while (top >= 0){
 		rpn[j++] = pop();
+		if ( '(' == rpn[j-1]
+		  || ')' == rpn[j-1])
+			return 4;
 		rpn[j++] = ' ';
 	}
 	rpn[j] = '\0';
 	strcpy(expression,rpn);
+	return 0;
 }
 static int calculate(char* rpn)
 {
@@ -201,17 +210,9 @@ while (1){
 		}
 		exp_string = json_string_value(exp);
 		strcpy(tmp,exp_string);
-		if (substitute(params, tmp)){
-			code = 1;
-			strcpy(tmp, "not enough params");
-		} else if (!is_right_exp(tmp)){
-			code = 1;
-			strcpy(tmp, "wrong expression");
-		} else {
-			exp_to_rpn(tmp);
-			sprintf(tmp, "%d", calculate(tmp));
-		}
-		sprintf(buf,"%s = %s", exp_string, tmp);
+		if ((code = exp_to_rpn(tmp, params)))
+			goto request_error;
+		sprintf(buf,"%s = %d", exp_string, calculate(tmp));
 		json_array_append_new(results, json_string(buf));
 	}
 	request_error:

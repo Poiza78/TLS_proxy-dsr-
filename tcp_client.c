@@ -78,8 +78,7 @@ static int is_right_add(char *line)
 	for (int i=0; i<strlen(line); ++i)	// line isn't null terminated
 		if (!isalnum(line[i])
 		&& (line[i] < '(' || line[i] > '+')	// ()*+ placed in a row
-		&& line[i] != ' '			// in ascii table
-		&& line[i] != '-')
+		&& line[i] != ' ')			// in ascii table
 			return 0;
 	return 1;
 }
@@ -120,7 +119,9 @@ static void calculation(int sock, json_t* params, json_t* expressions)
 	}
 	code = json_object_get(response, "code");
 	if (json_integer_value(code)){
-		fprintf(stderr,"error code: %d\n", json_integer_value(code));
+		fprintf(stderr,"error code: %" JSON_INTEGER_FORMAT "\n",
+				json_integer_value(code));
+		goto response_error;
 	}
 	results = json_object_get(response, "results");
 	if (!json_is_array(results)){
@@ -135,11 +136,11 @@ static void calculation(int sock, json_t* params, json_t* expressions)
 		}
 		printf("%s\n", json_string_value(result));
 	}
-	json_array_clear(expressions);
 	response_error:
 	json_decref(response);
 	request_error:
 	json_decref(request);
+	json_array_clear(expressions);
 }
 
 enum {
