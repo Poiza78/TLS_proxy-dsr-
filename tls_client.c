@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <sys/epoll.h>
 #include "connection.h"
 
 #define CERT "./client_cert/tls_client.crt"
@@ -26,6 +27,8 @@ int main(int argc, const char** argv)
 	ctx = init_CTX(TLSv1_2_client_method, CERT, KEY, CA);
 
 	tls_client_sock = make_socket(INADDR_ANY, argv[2], SERVER);
+	if (listen(tls_client_sock, SOMAXCONN) < 0)
+		error("listen");
 
 	while(1){
 		SSL *ssl;
@@ -51,23 +54,61 @@ int main(int argc, const char** argv)
 			fprintf(stderr, "verification error\n");
 			goto TLS_error;
 		}
+		set_nonblocking(tls_serv_sock);
+		set_nonblocking(tls_client_sock);
+
+		int ready, efd;
+		struct epoll_event event, *events;
+		struct fds fds[2], *fds_buf, *fds_s;
+
+		if ((efd = epoll_create1(0)) < 0)
+			error("epoll_create1");
+		event.events = EPOLLIN;
+
+		fds[0].tls_s = tls_serv_sock;
+		fds[0].tcp_s = tcp_client_sock;
+		fds[0].ssl_m = ssl;
+		fds[0].type = CLIENT;
+
+		event.data.ptr = &fds[0];
+
+		if (epoll_ctl(efd, EPOLL_CTL_ADD, tcp_client_sock, &event) < 0)
+			error("epoll_ctl");
+
+		memcpy(&fds[1], &fds[0], sizeof (struct fds));
+		fds[1].type = SERVER;
+		event.data.ptr = &fds[1];
+
+		if (epoll_ctl(efd, EPOLL_CTL_ADD, tls_serv_sock, &event) < 0)
+			error("epoll_ctl");
+
+		events = calloc(MAX_EVENTS, sizeof *events);
+		fds_s = calloc(MAX_EVENTS, sizeof *fds_s);
+
 		while(1){
-			memset(buf,0, sizeof(buf));
-			if (recv(tcp_client_sock, buf, BUF_SIZE, 0) < 0){
-				perror("recv");
-				goto TLS_error;
-			}
-			if (SSL_write(ssl, buf, strlen(buf)) <= 0){
-				ERR_print_errors_fp(stderr);
-				goto TLS_error;
-			}
-			if ((len = SSL_read(ssl, buf, BUF_SIZE)) <= 0){
-				ERR_print_errors_fp(stderr);
-				goto TLS_error;
-			}
-			if (send(tcp_client_sock, buf, len, 0) < 0){
-				perror("send");
-				goto TLS_error;
+			ready = epoll_wait(efd, events, MAX_EVENTS, -1);
+			if (ready < 0) error("epoll_wait");
+			for (int i=0; i < ready; ++i){
+				fds_buf = events[i].data.ptr;
+				if (events[i].events & EPOLLIN){
+					char buf[BUF_SIZE];
+					int len;
+					memset(buf, 0, sizeof buf);
+					if (fds_buf->type == CLIENT){
+						len = read(fds_buf->tcp_s, buf, sizeof buf);
+						if (len < 0){
+						//handle error: close connection,etc
+						}
+						SSL_write(fds_buf->ssl_m, buf, len);
+					} else
+					if (fds_buf->type == SERVER){
+						len = SSL_read(fds_buf->ssl_m, buf, sizeof buf);
+						if (len < 0){
+						//handle error: close connection,etc
+						}
+						write(fds_buf->tcp_s, buf, len);
+					}
+				}
 			}
 		}
 		TLS_error:

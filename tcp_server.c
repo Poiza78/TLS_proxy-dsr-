@@ -19,6 +19,8 @@ int main(int argc, const char** argv){
 	}
 	int server_sock, client_sock;
 	server_sock = make_socket(INADDR_ANY, argv[1], SERVER);
+	if (listen(server_sock, SOMAXCONN) < 0)
+		error("listen");
 	while(1){
 		client_sock = accept(server_sock, 0,0);
 		if (client_sock < 0){

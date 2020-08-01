@@ -7,6 +7,7 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/x509v3.h>
+#include <fcntl.h>
 
 void error(const char *err_msg)
 {
@@ -30,8 +31,6 @@ int make_socket(int ip, const char* port, int type)
 	case SERVER:
 		if (bind (sock, (struct sockaddr *) &addr, sizeof(addr)) < 0)
 			error("bind");
-		if (listen(sock, QUEUE_SIZE) < 0)
-			error("listen");
 		break;
 	case CLIENT:
 		if (connect(sock, (struct sockaddr *) &addr, sizeof(addr)) < 0)
@@ -72,7 +71,9 @@ SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void),
 	// second flag ignored on client side 
 	SSL_CTX_set_verify(ctx,
 		SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, 0);
-	SSL_CTX_load_verify_locations(ctx, ca, ca);
+	if (!SSL_CTX_load_verify_locations(ctx, ca, ca))
+		TLS_error();
+
 
 	return ctx;
 }
@@ -88,4 +89,17 @@ int verificate(SSL *ssl, char *common_name)
 	X509_free(cert);
 
 	return (res > 0);
+}
+
+int set_nonblocking(int sock) {
+  int flags = fcntl(sock, F_GETFL, 0);
+  if (flags < 0) {
+    perror("fcntl_get");
+    return 1;
+  }
+  if (fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0) {
+    perror("fcntl_set");
+    return 1;
+  }
+  return 0;
 }
