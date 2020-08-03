@@ -129,7 +129,112 @@ int SSL_do_handshake_nonblock(SSL* ssl)
 		switch(SSL_get_error(ssl, ret)){
 		case SSL_ERROR_WANT_READ:
 		case SSL_ERROR_WANT_WRITE:
-			printf("IO\n");
+			break;
+		case SSL_ERROR_SYSCALL:
+			printf("SYSCALL\n");
+			perror("");
+			goto out;
+		case SSL_ERROR_SSL:
+			printf("ERROR_SSL\n");
+			TLS_error();
+			break;
+		case SSL_ERROR_ZERO_RETURN:
+			printf("ZERO_RETURN\n");
+			break;
+		case SSL_ERROR_WANT_CONNECT:
+		case SSL_ERROR_WANT_ACCEPT:
+			//unused
+			printf("CONNECT/ACCEPT\n");
+			break;
+		default:
+			goto out;
+		}
+
+		epoll_wait(efd, events, 1, -1);
+	}
+out:
+	close(efd);
+	return ret;
+}
+
+int SSL_read_all(SSL *ssl, char *buf, int buf_len)
+{
+	int ret, err, efd;
+	struct epoll_event event, events[1];
+
+	efd = epoll_create1(0);
+	if (efd == -1){
+		perror("epoll_create1");
+		goto out;
+	}
+
+	event.events = EPOLLIN ;
+	event.data.fd = SSL_get_fd(ssl);
+	ret = epoll_ctl(efd, EPOLL_CTL_ADD, event.data.fd, &event);
+	if (ret == -1){
+		perror("epoll_ctl");
+		goto out;
+	}
+	while((ret = SSL_read(ssl, buf, buf_len)) < 0){
+
+		switch(SSL_get_error(ssl, ret)){
+		case SSL_ERROR_WANT_READ:
+			event.events = EPOLLOUT;
+			epoll_ctl(efd, EPOLL_CTL_MOD, event.data.fd, &event);
+			break;
+		case SSL_ERROR_WANT_WRITE:
+			event.events = EPOLLIN;
+			epoll_ctl(efd, EPOLL_CTL_MOD, event.data.fd, &event);
+			break;
+		case SSL_ERROR_SYSCALL:
+			printf("SYSCALL\n");
+			perror("");
+			goto out;
+		case SSL_ERROR_SSL:
+			printf("ERROR_SSL\n");
+			TLS_error();
+			break;
+		case SSL_ERROR_ZERO_RETURN:
+			printf("ZERO_RETURN\n");
+			break;
+		case SSL_ERROR_WANT_CONNECT:
+		case SSL_ERROR_WANT_ACCEPT:
+			//unused
+			printf("CONNECT/ACCEPT\n");
+			break;
+		default:
+			goto out;
+		}
+
+		epoll_wait(efd, events, 1, -1);
+	}
+out:
+	close(efd);
+	return ret;
+}
+int SSL_write_all(SSL *ssl, char *buf, int buf_len)
+{
+	int ret, err, efd;
+	struct epoll_event event, events[1];
+
+	efd = epoll_create1(0);
+	if (efd == -1){
+		perror("epoll_create1");
+		goto out;
+	}
+
+	event.events = EPOLLIN | EPOLLOUT;
+	event.data.fd = SSL_get_fd(ssl);
+	ret = epoll_ctl(efd, EPOLL_CTL_ADD, event.data.fd, &event);
+	if (ret == -1){
+		perror("epoll_ctl");
+		goto out;
+	}
+	while((ret = SSL_write(ssl, buf, buf_len)) < 0){
+
+		switch(SSL_get_error(ssl, ret)){
+		case SSL_ERROR_WANT_READ:
+		case SSL_ERROR_WANT_WRITE:
 			break;
 		case SSL_ERROR_SYSCALL:
 			printf("SYSCALL\n");

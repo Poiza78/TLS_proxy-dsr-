@@ -40,7 +40,7 @@ int main(int argc, const char** argv)
 
 	if ((efd = epoll_create1(0)) < 0)
 		error("epoll_create1");
-	event.events = EPOLLIN | EPOLLOUT;
+	event.events = EPOLLIN;
 
 	fds.tls_s = tls_serv_sock;
 	fds.tcp_s = -1;
@@ -63,7 +63,7 @@ int main(int argc, const char** argv)
 			if ((events[i].events & EPOLLERR)
 			  ||(events[i].events & EPOLLHUP)){
 				fprintf (stderr, "epoll error\n");
-				continue;
+				goto TLS_error;
 			}
 			if (tls_serv_sock == fds_buf->tls_s){
 				//TODO handle new connection
@@ -81,6 +81,8 @@ int main(int argc, const char** argv)
 				set_nonblocking(tcp_serv_sock);
 
 				ssl = SSL_new(ctx);
+				//i dont know why, but this function
+				//is initial regardless server method in init_ctx
 				SSL_set_accept_state(ssl);
 				SSL_set_fd(ssl, tls_client_sock);
 
@@ -92,6 +94,7 @@ int main(int argc, const char** argv)
 				fds_s[0].type = CLIENT;
 
 				event.data.ptr = &fds_s[0];
+				event.events = EPOLLIN;
 
 				if (epoll_ctl(efd, EPOLL_CTL_ADD, tls_client_sock, &event) < 0)
 					error("epoll_ctl");
@@ -99,11 +102,10 @@ int main(int argc, const char** argv)
 				memcpy(&fds_s[1], &fds_s[0], sizeof (struct fds));
 				fds_s[1].type = SERVER;
 				event.data.ptr = &fds_s[1];
+				event.events = EPOLLOUT;
 
 				if (epoll_ctl(efd, EPOLL_CTL_ADD, tcp_serv_sock, &event) < 0)
 					error("epoll_ctl");
-
-				continue;
 
 			} else {
 				if (!SSL_is_init_finished(fds_buf->ssl_m)){
@@ -116,42 +118,28 @@ int main(int argc, const char** argv)
 						goto TLS_error;
 					}
 				}
-				if (events[i].events & EPOLLIN
-				||events[i].events & EPOLLOUT){
+				char buf[BUF_SIZE];
+				int ret;
+				memset(buf, 0, sizeof buf);
 
-					char buf[BUF_SIZE];
-					int ret;
-					memset(buf, 0, sizeof buf);
-					if (fds_buf->type == CLIENT){
-						ret = SSL_read(fds_buf->ssl_m, buf, sizeof buf);
-						if (ret <= 0)
-							switch(SSL_get_error(fds_buf->ssl_m,ret)){
-							case SSL_ERROR_WANT_WRITE:
-							case SSL_ERROR_WANT_READ:
-								continue;
-							default:
-								goto TLS_error;
+				if (events[i].events & EPOLLIN){
+					ret = SSL_read_all(fds_buf->ssl_m, buf, sizeof buf);
 
-					}
-						write(fds_buf->tcp_s, buf, ret);
-						continue;
-					} else
-					if (fds_buf->type == SERVER){
-						read(fds_buf->tcp_s, buf, sizeof buf);
-						ret = SSL_write(fds_buf->ssl_m, buf, ret);
-						if (ret <= 0)
-							switch(SSL_get_error(fds_buf->ssl_m,ret)){
-							case SSL_ERROR_WANT_WRITE:
-							case SSL_ERROR_WANT_READ:
-								continue;
-							default:
-								goto TLS_error;
+					if (ret <= 0)
+						goto TLS_error;
 
-					}
-						continue;
+					write(fds_buf->tcp_s, buf, ret);
+				} else
+				if (events[i].events & EPOLLOUT){
+					ret = read(fds_buf->tcp_s, buf, sizeof buf);
+
+					ret = SSL_write_all(fds_buf->ssl_m, buf, ret);
+
+					if (ret <= 0)
+						goto TLS_error;
 				}
 			}
-			}
+		continue;
 		TLS_error:
 		SSL_free(fds_buf->ssl_m);
 		close (fds_buf->tcp_s);

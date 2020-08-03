@@ -47,6 +47,7 @@ int main(int argc, const char** argv)
 		set_nonblocking(tls_serv_sock);
 
 		ssl = SSL_new(ctx);
+		SSL_set_connect_state(ssl);
 		SSL_set_fd(ssl, tls_serv_sock);
 
 		if (SSL_do_handshake_nonblock(ssl)  <= 0) {
@@ -122,43 +123,4 @@ int main(int argc, const char** argv)
 	SSL_CTX_free(ctx);
 	close(tls_client_sock);
 	exit(EXIT_SUCCESS);
-}
-int SSL_connect_non_bl(SSL* ssl)
-{
-	int ret, err, efd;
-	struct epoll_event event, *events;
-
-	efd = epoll_create1(0);
-	if (efd == -1){
-		perror("epoll_create1");
-		goto out;
-	}
-
-	event.events = EPOLLIN | EPOLLOUT;
-	event.data.fd = SSL_get_fd(ssl);
-	ret = epoll_ctl(efd, EPOLL_CTL_ADD, event.data.fd, &event);
-	if (ret == -1){
-		perror("epoll_ctl");
-		goto out;
-	}
-	while(1){
-		ret = epoll_wait(efd, events, 1, -1);
-		if (ret == -1){
-			perror("epoll_wait");
-			goto out;
-		}
-		ret = SSL_do_handshake(ssl);
-		if (ret > 0) break;
-
-		err = SSL_get_error(ssl, ret);
-
-		if (err != SSL_ERROR_WANT_READ
-		  && err != SSL_ERROR_WANT_WRITE){
-			fprintf(stderr,"ssl error: %d\n", err);
-			goto out;
-		}
-	}
-out:
-	close(efd);
-	return ret;
 }
