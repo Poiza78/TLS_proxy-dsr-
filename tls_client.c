@@ -27,6 +27,7 @@ int main(int argc, const char** argv)
 	ctx = init_CTX(TLSv1_2_client_method, CERT, KEY, CA);
 
 	tls_client_sock = make_socket(INADDR_ANY, argv[2], SERVER);
+	set_nonblocking(tls_client_sock);
 	if (listen(tls_client_sock, SOMAXCONN) < 0)
 		error("listen");
 
@@ -40,22 +41,22 @@ int main(int argc, const char** argv)
 			perror("accept");
 			continue;
 		}
+		set_nonblocking(tcp_client_sock);
 
 		tls_serv_sock = make_socket(INADDR_LOOPBACK, argv[1], CLIENT);
+		set_nonblocking(tls_serv_sock);
 
 		ssl = SSL_new(ctx);
 		SSL_set_fd(ssl, tls_serv_sock);
 
-		if (SSL_connect(ssl)  <= 0) {
-			ERR_print_errors_fp(stderr);
+		if (SSL_do_handshake_nonblock(ssl)  <= 0) {
+			fprintf(stderr,"SSL_connect_nonbl");
 			goto TLS_error;
 		}
 		if (!verificate(ssl, CN)){
 			fprintf(stderr, "verification error\n");
 			goto TLS_error;
 		}
-		set_nonblocking(tls_serv_sock);
-		set_nonblocking(tls_client_sock);
 
 		int ready, efd;
 		struct epoll_event event, *events;
@@ -119,4 +120,43 @@ int main(int argc, const char** argv)
 	SSL_CTX_free(ctx);
 	close(tls_client_sock);
 	exit(EXIT_SUCCESS);
+}
+int SSL_connect_non_bl(SSL* ssl)
+{
+	int ret, err, efd;
+	struct epoll_event event, *events;
+
+	efd = epoll_create1(0);
+	if (efd == -1){
+		perror("epoll_create1");
+		goto out;
+	}
+
+	event.events = EPOLLIN | EPOLLOUT;
+	event.data.fd = SSL_get_fd(ssl);
+	ret = epoll_ctl(efd, EPOLL_CTL_ADD, event.data.fd, &event);
+	if (ret == -1){
+		perror("epoll_ctl");
+		goto out;
+	}
+	while(1){
+		ret = epoll_wait(efd, events, 1, -1);
+		if (ret == -1){
+			perror("epoll_wait");
+			goto out;
+		}
+		ret = SSL_do_handshake(ssl);
+		if (ret > 0) break;
+
+		err = SSL_get_error(ssl, ret);
+
+		if (err != SSL_ERROR_WANT_READ
+		  && err != SSL_ERROR_WANT_WRITE){
+			fprintf(stderr,"ssl error: %d\n", err);
+			goto out;
+		}
+	}
+out:
+	close(efd);
+	return ret;
 }

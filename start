@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 
 
-if [[ $# -ne 2 ]]; then
-    echo "Usage: ./start tcp_serv_port_num tls_serv_port_num" 
+if [[ $# -ne 1 ]]; then
+    echo "Usage: ./start tcp_serv_port_num " 
     exit 1
 fi
 
-#make clean 2>&1 >/dev/null
-if ! [ -x ./tcp_server ]; then
-	make 
-fi
+let a=$1+1
+let b=$a+1
+
+
+make
 
 ./tcp_server $1 &
-./tls_server $1 $2 &
-openssl s_client -cert client_cert/tls_client.crt -key client_cert/tls_client.key -connect 127.1:$2
+./tls_server $1 $a &
+./tls_client $a $b &
+./tcp_client $b
 
 ps | grep *_server | awk '{print $1}' | xargs kill
