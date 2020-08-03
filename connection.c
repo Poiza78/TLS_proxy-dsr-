@@ -124,11 +124,28 @@ int SSL_do_handshake_nonblock(SSL* ssl)
 		perror("epoll_ctl");
 		goto out;
 	}
-	while((ret = SSL_do_handshake(ssl)) <= 0){
+	while((ret = SSL_do_handshake(ssl)) < 0){
 
 		switch(SSL_get_error(ssl, ret)){
 		case SSL_ERROR_WANT_READ:
 		case SSL_ERROR_WANT_WRITE:
+			printf("IO\n");
+			break;
+		case SSL_ERROR_SYSCALL:
+			printf("SYSCALL\n");
+			perror("");
+			goto out;
+		case SSL_ERROR_SSL:
+			printf("ERROR_SSL\n");
+			TLS_error();
+			break;
+		case SSL_ERROR_ZERO_RETURN:
+			printf("ZERO_RETURN\n");
+			break;
+		case SSL_ERROR_WANT_CONNECT:
+		case SSL_ERROR_WANT_ACCEPT:
+			//unused
+			printf("CONNECT/ACCEPT\n");
 			break;
 		default:
 			goto out;

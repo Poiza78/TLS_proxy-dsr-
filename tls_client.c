@@ -101,6 +101,7 @@ int main(int argc, const char** argv)
 						//handle error: close connection,etc
 						}
 						SSL_write(fds_buf->ssl_m, buf, len);
+						continue;
 					} else
 					if (fds_buf->type == SERVER){
 						len = SSL_read(fds_buf->ssl_m, buf, sizeof buf);
@@ -108,6 +109,7 @@ int main(int argc, const char** argv)
 						//handle error: close connection,etc
 						}
 						write(fds_buf->tcp_s, buf, len);
+						continue;
 					}
 				}
 			}

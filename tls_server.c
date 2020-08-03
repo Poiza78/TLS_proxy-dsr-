@@ -60,10 +60,8 @@ int main(int argc, const char** argv)
 		for (int i=0; i < ready; ++i){
 			fds_buf = events[i].data.ptr;
 
-			if((events[i].events & EPOLLERR)  ||
-			   (events[i].events & EPOLLHUP)  ||
-			   (!(events[i].events & EPOLLIN)))
-			{
+			if ((events[i].events & EPOLLERR)
+			  ||(events[i].events & EPOLLHUP)){
 				fprintf (stderr, "epoll error\n");
 				continue;
 			}
@@ -83,6 +81,7 @@ int main(int argc, const char** argv)
 				set_nonblocking(tcp_serv_sock);
 
 				ssl = SSL_new(ctx);
+				SSL_set_accept_state(ssl);
 				SSL_set_fd(ssl, tls_client_sock);
 
 				fds_s = calloc(2, sizeof *fds_s);
@@ -117,34 +116,47 @@ int main(int argc, const char** argv)
 						goto TLS_error;
 					}
 				}
-			if (events[i].events & EPOLLIN){
+				if (events[i].events & EPOLLIN
+				||events[i].events & EPOLLOUT){
 
-				char buf[BUF_SIZE];
-				int len;
-				memset(buf, 0, sizeof buf);
-				if (fds_buf->type == CLIENT){
-					len = SSL_read(fds_buf->ssl_m, buf, sizeof buf);
-					if (len < 0){
-					//TODO handle error: close connection,etc
+					char buf[BUF_SIZE];
+					int ret;
+					memset(buf, 0, sizeof buf);
+					if (fds_buf->type == CLIENT){
+						ret = SSL_read(fds_buf->ssl_m, buf, sizeof buf);
+						if (ret <= 0)
+							switch(SSL_get_error(fds_buf->ssl_m,ret)){
+							case SSL_ERROR_WANT_WRITE:
+							case SSL_ERROR_WANT_READ:
+								continue;
+							default:
+								goto TLS_error;
+
 					}
-					write(fds_buf->tcp_s, buf, len);
-				} else
-				if (fds_buf->type == SERVER){
-					len = read(fds_buf->tcp_s, buf, sizeof buf);
-					if (len < 0){
-					//TODO handle error: close connection,etc
+						write(fds_buf->tcp_s, buf, ret);
+						continue;
+					} else
+					if (fds_buf->type == SERVER){
+						read(fds_buf->tcp_s, buf, sizeof buf);
+						ret = SSL_write(fds_buf->ssl_m, buf, ret);
+						if (ret <= 0)
+							switch(SSL_get_error(fds_buf->ssl_m,ret)){
+							case SSL_ERROR_WANT_WRITE:
+							case SSL_ERROR_WANT_READ:
+								continue;
+							default:
+								goto TLS_error;
+
 					}
-					SSL_write(fds_buf->ssl_m, buf, len);
+						continue;
 				}
-			} else
-			if (events[i].events & EPOLLOUT){
-				printf("EPOLLOUT\n");
 			}
 			}
 		TLS_error:
 		SSL_free(fds_buf->ssl_m);
 		close (fds_buf->tcp_s);
 		close (fds_buf->tls_s);
+		free (fds_buf);
 		}
 	}
 
