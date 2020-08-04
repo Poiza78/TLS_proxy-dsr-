@@ -13,8 +13,12 @@ let b=$a+1
 make
 
 ./tcp_server $1 &
+sleep 1s
 ./tls_server $1 $a &
+sleep 1s
 ./tls_client $a $b &
+sleep 1s
 ./tcp_client $b
 
-ps | grep *_server | awk '{print $1}' | xargs kill
+ps | grep server | awk '{print $1}' | xargs kill
+ps | grep client | awk '{print $1}' | xargs kill

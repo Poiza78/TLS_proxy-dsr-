@@ -23,9 +23,7 @@ SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void),
 int verificate(SSL *ssl, char *common_name);
 
 int set_nonblocking(int sock);
-int SSL_do_handshake_nonblock(SSL *ssl);
-
-int SSL_read_all(SSL *ssl, char *buf, int buf_len);
-int SSL_write_all(SSL *ssl, char *buf, int buf_len);
+int SSL_nonblock(int (*SSL_F)(),
+		SSL *ssl, char *buf, int buf_len);
 
 #endif

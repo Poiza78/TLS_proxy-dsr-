@@ -60,7 +60,8 @@ int main(int argc, const char** argv)
 			fds_buf = events[i].data.ptr;
 
 			if ((events[i].events & EPOLLERR)
-			  ||(events[i].events & EPOLLHUP)){
+			  ||(events[i].events & EPOLLHUP)
+			  ||(!(events[i].events & EPOLLIN))){
 				fprintf (stderr, "epoll error\n");
 				goto TLS_error;
 			}
@@ -108,7 +109,7 @@ int main(int argc, const char** argv)
 
 			} else {
 				if (!SSL_is_init_finished(fds_buf->ssl_m)){
-					if (SSL_do_handshake_nonblock(fds_buf->ssl_m) <= 0){
+					if (SSL_nonblock(SSL_do_handshake, fds_buf->ssl_m, 0, 0) <= 0){
 						fprintf(stderr, "ssl_accept error\n");
 						goto TLS_error;
 					}
@@ -121,21 +122,19 @@ int main(int argc, const char** argv)
 				int ret;
 				memset(buf, 0, sizeof buf);
 
-				if (events[i].events & EPOLLIN){
-					if (CLIENT == fds_buf->type){
-						ret = SSL_read_all(fds_buf->ssl_m, buf, sizeof buf);
+				if (CLIENT == fds_buf->type){
+					ret = SSL_nonblock(SSL_read, fds_buf->ssl_m, buf, sizeof buf);
 
-						if (ret <= 0)
-							goto TLS_error;
+					if (ret <= 0)
+						goto TLS_error;
 
-						write(fds_buf->tcp_s, buf, ret);
-					} else if (SERVER == fds_buf->type){
-						ret = read(fds_buf->tcp_s, buf, sizeof buf);
-						ret = SSL_write_all(fds_buf->ssl_m, buf, ret);
+					write(fds_buf->tcp_s, buf, ret);
+				} else if (SERVER == fds_buf->type){
+					ret = read(fds_buf->tcp_s, buf, sizeof buf);
+					ret = SSL_nonblock(SSL_write, fds_buf->ssl_m, buf, ret);
 
-						if (ret <= 0)
-							goto TLS_error;
-					}
+					if (ret <= 0)
+						goto TLS_error;
 				}
 			}
 		continue;

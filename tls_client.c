@@ -67,7 +67,7 @@ int main(int argc, const char** argv)
 		if (epoll_ctl(efd, EPOLL_CTL_ADD, tls_serv_sock, &event) < 0)
 			error("epoll_ctl");
 
-		events = calloc(MAX_EVENTS, sizeof *events);
+		events = calloc(2, sizeof *events);
 
 		while(1){
 
@@ -77,12 +77,13 @@ int main(int argc, const char** argv)
 			for (int i=0; i < ready; ++i){
 
 				if ((events[i].events & EPOLLERR)
-				||(events[i].events & EPOLLHUP)){
+				  ||(events[i].events & EPOLLHUP)
+				  ||(!(events[i].events & EPOLLIN))){
 					fprintf (stderr, "epoll error\n");
 					goto TLS_error;
 				}
 				if (!SSL_is_init_finished(ssl)){
-					if (SSL_do_handshake_nonblock(ssl) <= 0){
+					if (SSL_nonblock(SSL_do_handshake, ssl, 0, 0) <= 0){
 						fprintf(stderr, "ssl_accept error\n");
 						goto TLS_error;
 					}
@@ -95,27 +96,26 @@ int main(int argc, const char** argv)
 				int ret;
 				memset(buf, 0, sizeof buf);
 
-				if (events[i].events & EPOLLIN){
-					if (tcp_client_sock == events[i].data.fd){
-						ret = read(tcp_client_sock, buf, sizeof buf);
-						ret = SSL_write_all(ssl, buf, ret);
+				if (tcp_client_sock == events[i].data.fd){
+					ret = read(tcp_client_sock, buf, sizeof buf);
+					ret = SSL_nonblock(SSL_write, ssl, buf, ret);
 
-						if (ret <= 0)
-							goto TLS_error;
+					if (ret <= 0)
+						goto TLS_error;
 
-					} else if (tls_serv_sock == events[i].data.fd){
-						ret = SSL_read_all(ssl, buf, sizeof buf);
+				} else if (tls_serv_sock == events[i].data.fd){
+					ret = SSL_nonblock(SSL_read, ssl, buf, sizeof buf);
 
-						if (ret <= 0)
-							goto TLS_error;
+					if (ret <= 0)
+						goto TLS_error;
 
-						write(tcp_client_sock, buf, ret);
-					}
+					write(tcp_client_sock, buf, ret);
 				}
 			}
 		}
 		TLS_error:
 		SSL_free(ssl);
+		free(events);
 		close (tcp_client_sock);
 		close (tls_serv_sock);
 		close (efd);
