@@ -27,7 +27,6 @@ int main(int argc, const char** argv)
 	ctx = init_CTX(TLSv1_2_client_method, CERT, KEY, CA);
 
 	tls_client_sock = make_socket(INADDR_ANY, argv[2], SERVER);
-	set_nonblocking(tls_client_sock);
 	if (listen(tls_client_sock, SOMAXCONN) < 0)
 		error("listen");
 
@@ -50,73 +49,76 @@ int main(int argc, const char** argv)
 		SSL_set_connect_state(ssl);
 		SSL_set_fd(ssl, tls_serv_sock);
 
-		if (SSL_do_handshake_nonblock(ssl)  <= 0) {
-			fprintf(stderr,"SSL_connect_nonbl");
-			goto TLS_error;
-		}
-		if (!verificate(ssl, CN)){
-			fprintf(stderr, "verification error\n");
-			goto TLS_error;
-		}
-
 		int ready, efd;
 		struct epoll_event event, *events;
-		struct fds fds[2], *fds_buf, *fds_s;
 
 		if ((efd = epoll_create1(0)) < 0)
 			error("epoll_create1");
+
 		event.events = EPOLLIN;
-
-		fds[0].tls_s = tls_serv_sock;
-		fds[0].tcp_s = tcp_client_sock;
-		fds[0].ssl_m = ssl;
-
-		event.data.ptr = &fds[0];
+		event.data.fd = tcp_client_sock;
 
 		if (epoll_ctl(efd, EPOLL_CTL_ADD, tcp_client_sock, &event) < 0)
 			error("epoll_ctl");
 
-		memcpy(&fds[1], &fds[0], sizeof (struct fds));
-		event.data.ptr = &fds[1];
+		event.events = EPOLLIN;
+		event.data.fd = tls_serv_sock;
 
 		if (epoll_ctl(efd, EPOLL_CTL_ADD, tls_serv_sock, &event) < 0)
 			error("epoll_ctl");
 
 		events = calloc(MAX_EVENTS, sizeof *events);
-		fds_s = calloc(MAX_EVENTS, sizeof *fds_s);
 
 		while(1){
-			ready = epoll_wait(efd, events, MAX_EVENTS, -1);
+
+			ready = epoll_wait(efd, events, 1, -1);
 			if (ready < 0) error("epoll_wait");
+
 			for (int i=0; i < ready; ++i){
-				fds_buf = events[i].data.ptr;
+
+				if ((events[i].events & EPOLLERR)
+				||(events[i].events & EPOLLHUP)){
+					fprintf (stderr, "epoll error\n");
+					goto TLS_error;
+				}
+				if (!SSL_is_init_finished(ssl)){
+					if (SSL_do_handshake_nonblock(ssl) <= 0){
+						fprintf(stderr, "ssl_accept error\n");
+						goto TLS_error;
+					}
+					if (!verificate(ssl, CN)){
+						fprintf(stderr, "verification error\n");
+						goto TLS_error;
+					}
+				}
+				char buf[BUF_SIZE];
+				int ret;
+				memset(buf, 0, sizeof buf);
+
 				if (events[i].events & EPOLLIN){
-					char buf[BUF_SIZE];
-					int len;
-					memset(buf, 0, sizeof buf);
-					if (fds_buf->type == CLIENT){
-						len = read(fds_buf->tcp_s, buf, sizeof buf);
-						if (len < 0){
-						//handle error: close connection,etc
-						}
-						SSL_write(fds_buf->ssl_m, buf, len);
-						continue;
-					} else
-					if (fds_buf->type == SERVER){
-						len = SSL_read(fds_buf->ssl_m, buf, sizeof buf);
-						if (len < 0){
-						//handle error: close connection,etc
-						}
-						write(fds_buf->tcp_s, buf, len);
-						continue;
+					if (tcp_client_sock == events[i].data.fd){
+						ret = read(tcp_client_sock, buf, sizeof buf);
+						ret = SSL_write_all(ssl, buf, ret);
+
+						if (ret <= 0)
+							goto TLS_error;
+
+					} else if (tls_serv_sock == events[i].data.fd){
+						ret = SSL_read_all(ssl, buf, sizeof buf);
+
+						if (ret <= 0)
+							goto TLS_error;
+
+						write(tcp_client_sock, buf, ret);
 					}
 				}
 			}
 		}
 		TLS_error:
 		SSL_free(ssl);
-		close(tcp_client_sock);
-		close(tls_serv_sock);
+		close (tcp_client_sock);
+		close (tls_serv_sock);
+		close (efd);
 	}
 	SSL_CTX_free(ctx);
 	close(tls_client_sock);
