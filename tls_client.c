@@ -70,7 +70,6 @@ int main(int argc, const char** argv)
 		fds[0].tls_s = tls_serv_sock;
 		fds[0].tcp_s = tcp_client_sock;
 		fds[0].ssl_m = ssl;
-		fds[0].type = CLIENT;
 
 		event.data.ptr = &fds[0];
 
@@ -78,7 +77,6 @@ int main(int argc, const char** argv)
 			error("epoll_ctl");
 
 		memcpy(&fds[1], &fds[0], sizeof (struct fds));
-		fds[1].type = SERVER;
 		event.data.ptr = &fds[1];
 
 		if (epoll_ctl(efd, EPOLL_CTL_ADD, tls_serv_sock, &event) < 0)

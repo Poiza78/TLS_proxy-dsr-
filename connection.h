@@ -11,8 +11,8 @@
 struct fds {
 	int tcp_s;
 	int tls_s;
-	SSL *ssl_m;
 	int type;
+	SSL *ssl_m;
 };
 
 void error(const char* err_msg);

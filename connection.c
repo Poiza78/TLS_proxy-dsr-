@@ -124,11 +124,16 @@ int SSL_do_handshake_nonblock(SSL* ssl)
 		perror("epoll_ctl");
 		goto out;
 	}
-	while((ret = SSL_do_handshake(ssl)) < 0){
+	while((ret = SSL_do_handshake(ssl)) <= 0){
 
 		switch(SSL_get_error(ssl, ret)){
 		case SSL_ERROR_WANT_READ:
+			event.events = EPOLLIN;
+			epoll_ctl(efd, EPOLL_CTL_MOD, event.data.fd, &event);
+			break;
 		case SSL_ERROR_WANT_WRITE:
+			event.events = EPOLLOUT;
+			epoll_ctl(efd, EPOLL_CTL_MOD, event.data.fd, &event);
 			break;
 		case SSL_ERROR_SYSCALL:
 			printf("SYSCALL\n");
@@ -175,15 +180,15 @@ int SSL_read_all(SSL *ssl, char *buf, int buf_len)
 		perror("epoll_ctl");
 		goto out;
 	}
-	while((ret = SSL_read(ssl, buf, buf_len)) < 0){
+	while((ret = SSL_read(ssl, buf, buf_len)) <= 0){
 
 		switch(SSL_get_error(ssl, ret)){
 		case SSL_ERROR_WANT_READ:
-			event.events = EPOLLOUT;
+			event.events = EPOLLIN;
 			epoll_ctl(efd, EPOLL_CTL_MOD, event.data.fd, &event);
 			break;
 		case SSL_ERROR_WANT_WRITE:
-			event.events = EPOLLIN;
+			event.events = EPOLLOUT;
 			epoll_ctl(efd, EPOLL_CTL_MOD, event.data.fd, &event);
 			break;
 		case SSL_ERROR_SYSCALL:
@@ -230,11 +235,16 @@ int SSL_write_all(SSL *ssl, char *buf, int buf_len)
 		perror("epoll_ctl");
 		goto out;
 	}
-	while((ret = SSL_write(ssl, buf, buf_len)) < 0){
+	while((ret = SSL_write(ssl, buf, buf_len)) <= 0){
 
 		switch(SSL_get_error(ssl, ret)){
 		case SSL_ERROR_WANT_READ:
+			event.events = EPOLLIN;
+			epoll_ctl(efd, EPOLL_CTL_MOD, event.data.fd, &event);
+			break;
 		case SSL_ERROR_WANT_WRITE:
+			event.events = EPOLLOUT;
+			epoll_ctl(efd, EPOLL_CTL_MOD, event.data.fd, &event);
 			break;
 		case SSL_ERROR_SYSCALL:
 			printf("SYSCALL\n");

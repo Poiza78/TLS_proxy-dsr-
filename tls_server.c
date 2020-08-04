@@ -45,7 +45,7 @@ int main(int argc, const char** argv)
 	fds.tls_s = tls_serv_sock;
 	fds.tcp_s = -1;
 	fds.ssl_m = 0;
-	fds.type = SERVER;
+	fds.type = 0;
 	event.data.ptr = &fds;
 
 	if (epoll_ctl(efd, EPOLL_CTL_ADD, tls_serv_sock, &event) < 0)
@@ -102,7 +102,7 @@ int main(int argc, const char** argv)
 				memcpy(&fds_s[1], &fds_s[0], sizeof (struct fds));
 				fds_s[1].type = SERVER;
 				event.data.ptr = &fds_s[1];
-				event.events = EPOLLOUT;
+
 
 				if (epoll_ctl(efd, EPOLL_CTL_ADD, tcp_serv_sock, &event) < 0)
 					error("epoll_ctl");
@@ -123,20 +123,20 @@ int main(int argc, const char** argv)
 				memset(buf, 0, sizeof buf);
 
 				if (events[i].events & EPOLLIN){
-					ret = SSL_read_all(fds_buf->ssl_m, buf, sizeof buf);
+					if (CLIENT == fds_buf->type){
+						ret = SSL_read_all(fds_buf->ssl_m, buf, sizeof buf);
 
-					if (ret <= 0)
-						goto TLS_error;
+						if (ret <= 0)
+							goto TLS_error;
 
-					write(fds_buf->tcp_s, buf, ret);
-				} else
-				if (events[i].events & EPOLLOUT){
-					ret = read(fds_buf->tcp_s, buf, sizeof buf);
+						write(fds_buf->tcp_s, buf, ret);
+					} else if (SERVER == fds_buf->type){
+						ret = read(fds_buf->tcp_s, buf, sizeof buf);
+						ret = SSL_write_all(fds_buf->ssl_m, buf, ret);
 
-					ret = SSL_write_all(fds_buf->ssl_m, buf, ret);
-
-					if (ret <= 0)
-						goto TLS_error;
+						if (ret <= 0)
+							goto TLS_error;
+					}
 				}
 			}
 		continue;
