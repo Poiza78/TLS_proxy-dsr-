@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <jansson.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <netinet/in.h>
 #include "connection.h"
 
@@ -27,9 +28,20 @@ int main(int argc, const char** argv){
 			perror("accept");
 			continue;
 		}
-		process_server(client_sock);
-		close(client_sock);
+		switch(fork()){
+		case -1:
+			perror("fork");
+			break;
+		case 0:
+			close(server_sock);
+			process_server(client_sock);
+			close(client_sock);
+			exit(EXIT_SUCCESS);
+		default:
+			close(client_sock);
+		}
 	}
+	close(server_sock);
 	exit(EXIT_SUCCESS);
 }
 
