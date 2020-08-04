@@ -32,8 +32,6 @@ int main(int argc, const char** argv)
 
 	while(1){
 		SSL *ssl;
-		char buf[BUF_SIZE];
-		int len;
 
 		tcp_client_sock = accept(tls_client_sock, 0, 0);
 		if (tcp_client_sock < 0){

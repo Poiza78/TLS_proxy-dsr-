@@ -109,7 +109,7 @@ int set_nonblocking(int sock) {
 int SSL_nonblock(int (*SSL_IO)(),
 		SSL *ssl, char *buf, int buf_len)
 {
-	int ret, err, efd;
+	int ret, efd;
 	struct epoll_event event, *events;
 
 	efd = epoll_create1(0);

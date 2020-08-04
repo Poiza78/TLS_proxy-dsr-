@@ -16,7 +16,7 @@ tcp_client: tcp_client.o connection.o
 tls_client: tls_client.o connection.o
 	$(CC) $^ -o $@ $(LDLIBS)
 
-%.o : CFLAGS = -g
+%.o : CFLAGS = -g -Wall
 connection.o: connection.h
 
 .PHONY : clean
