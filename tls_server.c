@@ -34,18 +34,12 @@ int main(int argc, const char** argv)
 		error("listen");
 
 	int ready, efd;
-	struct epoll_event event, *events;
-	struct fds fds, *fds_buf, *fds_s;
+	struct epoll_event *events, event = {0};
+	//struct fds fds, *fds_buf, *fds_s;
 
 	if ((efd = epoll_create1(0)) < 0)
 		error("epoll_create1");
 	event.events = EPOLLIN;
-
-	fds.tls_s = tls_serv_sock;
-	fds.tcp_s = -1;
-	fds.ssl_m = 0;
-	fds.type = 0;
-	event.data.ptr = &fds;
 
 	if (epoll_ctl(efd, EPOLL_CTL_ADD, tls_serv_sock, &event) < 0)
 		error("epoll_ctl");
@@ -53,101 +47,75 @@ int main(int argc, const char** argv)
 	events = calloc(MAX_EVENTS, sizeof *events);
 
 	while(1){
-		ready = epoll_wait(efd, events, MAX_EVENTS, -1);
-		if (ready < 0) error("epoll_wait");
 
-		for (int i=0; i < ready; ++i){
-			fds_buf = events[i].data.ptr;
-
-			if ((events[i].events & EPOLLERR)
-			  ||(events[i].events & EPOLLHUP)
-			  ||(!(events[i].events & EPOLLIN))){
-				fprintf (stderr, "epoll error\n");
-				goto TLS_error;
-			}
-			if (tls_serv_sock == fds_buf->tls_s){
-				//TODO handle new connection
-
-				SSL *ssl;
-
-				tls_client_sock = accept(tls_serv_sock, 0, 0);
-				if (tls_client_sock < 0){
-					perror("accept");
-					continue;
-				}
-				set_nonblocking(tls_client_sock);
-
-				tcp_serv_sock = make_socket(INADDR_LOOPBACK, argv[1], CLIENT);
-				set_nonblocking(tcp_serv_sock);
-
-				ssl = SSL_new(ctx);
-				//i dont know why, but this function
-				//is initial regardless server method in init_ctx
-				SSL_set_accept_state(ssl);
-				SSL_set_fd(ssl, tls_client_sock);
-
-				fds_s = calloc(2, sizeof *fds_s);
-
-				fds_s[0].tcp_s = tcp_serv_sock;
-				fds_s[0].tls_s = tls_client_sock;
-				fds_s[0].ssl_m = ssl;
-				fds_s[0].type = CLIENT;
-
-				event.data.ptr = &fds_s[0];
-				event.events = EPOLLIN;
-
-				if (epoll_ctl(efd, EPOLL_CTL_ADD, tls_client_sock, &event) < 0)
-					error("epoll_ctl");
-
-				memcpy(&fds_s[1], &fds_s[0], sizeof (struct fds));
-				fds_s[1].type = SERVER;
-				event.data.ptr = &fds_s[1];
-
-
-				if (epoll_ctl(efd, EPOLL_CTL_ADD, tcp_serv_sock, &event) < 0)
-					error("epoll_ctl");
-
-			} else {
-				if (!SSL_is_init_finished(fds_buf->ssl_m)){
-					if (SSL_nonblock(SSL_do_handshake, fds_buf->ssl_m, 0, 0) <= 0){
-						fprintf(stderr, "ssl_accept error\n");
-						goto TLS_error;
-					}
-					if (!verificate(fds_buf->ssl_m, CN)){
-						fprintf(stderr, "verification error\n");
-						goto TLS_error;
-					}
-				}
-				char buf[BUF_SIZE];
-				int ret;
-				memset(buf, 0, sizeof buf);
-
-				if (CLIENT == fds_buf->type){
-					ret = SSL_nonblock(SSL_read, fds_buf->ssl_m, buf, sizeof buf);
-
-					if (ret <= 0)
-						goto TLS_error;
-
-					write(fds_buf->tcp_s, buf, ret);
-				} else if (SERVER == fds_buf->type){
-					ret = read(fds_buf->tcp_s, buf, sizeof buf);
-					ret = SSL_nonblock(SSL_write, fds_buf->ssl_m, buf, ret);
-
-					if (ret <= 0)
-						goto TLS_error;
-				}
-			}
-		continue;
-		TLS_error:
-		SSL_free(fds_buf->ssl_m);
-		close (fds_buf->tcp_s);
-		close (fds_buf->tls_s);
-		free (fds_buf);
-		}
+	ready = epoll_wait(efd, events, MAX_EVENTS, -1);
+	if (ready < 0){
+		perror("epoll_wait");
+		break;
 	}
+
+	for (int i=0; i<ready; ++){
+
+		conn_buf = events[i].data.ptr;
+
+		if (( events[i].events & EPOLLERR )
+		  ||( events[i].events & EPOLLHUP )
+		  ||(!( events[i].events & EPOLLIN )
+		  && !( events[i].events & EPOLLOUT )))
+		{
+			// TODO handle closed connection 
+			// close sockets, free buffers etc
+		} else if (tls_serv_sock == conn_buf->data->tls_s){
+			// TODO handle new connection
+
+		} else if (CLIENT == conn_buf->type){
+			switch (conn_buf->data->ssl_state){
+			case SSL_OK:
+				if (events[i].events & EPOLLIN){
+					// TODO do_SSL_read();
+				} else {// if (events[i].events & EPOLLOUT
+					// TODO do_SSL_write();
+				}
+				break;
+			case SSL_WANT_HANDSHAKE:
+				//TODO do_SSL_handshake();
+				break;
+			case SSL_WANT_PERFORM_READ:
+				do_SSL_read();
+				break;
+			case SSL_WANT_PERFORM_WRITE:
+				do_SSL_write();
+				break;
+			default:
+				//unreachable 
+
+
+			}
+		} else { // if (SERVER == conn_buf->type)
+
+			if (events[i].events & EPOLLIN){
+				//TODO do_read();
+
+			} else { // if (events[i].events & EPOLLOUT)
+				//TODO do_write();
+				// maybe w/o dedicated functions? 
+
+			}
+
+
+		}
+		continue;
+TLS_error:
+
+	} // event_loop
+
+
+
+	} // while (1)
 
 	SSL_CTX_free(ctx);
 	close(tls_serv_sock);
+	close(efd);
 	exit(EXIT_SUCCESS);
 }
 

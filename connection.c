@@ -48,13 +48,13 @@ void TLS_error()
 	exit(EXIT_FAILURE);
 }
 
-/*
-* As of version 1.1.0 OpenSSL will automatically allocate all 
-* resources that it needs so no explicit initialisation is required.
-*/
 SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void),
 		const char *cert, const char *key, const char *ca)
 {
+	/*
+	* As of version 1.1.0 OpenSSL will automatically allocate all 
+	* resources that it needs so no explicit initialisation is required.
+	*/
 	const SSL_METHOD *method;
 	SSL_CTX *ctx;
 
@@ -79,6 +79,7 @@ SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void),
 
 	return ctx;
 }
+
 int verificate(SSL *ssl, char *common_name)
 {
 	X509* cert = SSL_get_peer_certificate(ssl);
@@ -93,15 +94,16 @@ int verificate(SSL *ssl, char *common_name)
 	return (res > 0);
 }
 
-int set_nonblocking(int sock) {
+int set_nonblocking(int sock)
+{
 	int flags = fcntl(sock, F_GETFL, 0);
 	if (flags < 0) {
 		perror("fcntl_get");
-		return 1;
+		return -1;
 	}
 	if (fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0) {
 		perror("fcntl_set");
-		return 1;
+		return -1;
 	}
 	return 0;
 }
