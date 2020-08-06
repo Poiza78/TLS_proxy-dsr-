@@ -75,7 +75,7 @@ SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void),
 
 	// second flag ignored on client side 
 	SSL_CTX_set_verify(ctx,
-		SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, 0);
+			SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT , 0);
 
 	return ctx;
 }
@@ -83,15 +83,15 @@ SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void),
 int verificate(SSL *ssl, char *common_name)
 {
 	X509* cert = SSL_get_peer_certificate(ssl);
-	if (!cert) return 0;
+	if (!cert) return -1;
 
-	int res = SSL_get_verify_result(ssl);
-	if (res != X509_V_OK) return 0;
+	int ret = SSL_get_verify_result(ssl);
+	if (ret != X509_V_OK) return -1;
 
-	res = X509_check_host(cert, common_name, 0,0,0);
+	ret = X509_check_host(cert, common_name, 0,0,0);
 	X509_free(cert);
 
-	return (res > 0);
+	return (ret > 0);
 }
 
 int set_nonblocking(int sock)
@@ -156,4 +156,105 @@ out:
 	free(events);
 	close(efd);
 	return ret;
+}
+
+void init_data(struct data_t *data, int tls_s, int tcp_s, SSL* ssl)
+{
+	data->tls_s = tls_s;
+	data->tcp_s = tcp_s;
+
+	data->read_size = BUF_SIZE;
+	data->write_size = BUF_SIZE;
+
+	data->read_total = 0;
+	data->write_total = 0;
+
+	data->read_buf = calloc(data->read_size, sizeof (char));
+	data->write_buf = calloc(data->write_size, sizeof (char));
+
+	data->ssl_state = SSL_WANT_HANDSHAKE;
+
+	data->ssl = ssl;
+}
+
+void cleanup_connection(connection_t *conn, int efd)
+{
+	struct data_t *data = conn->data;
+
+	free(data->read_buf);
+	free(data->write_buf);
+
+	data->read_buf = NULL;
+	data->write_buf = NULL;
+
+	epoll_ctl(efd, EPOLL_CTL_DEL, data->tls_s, 0);
+	epoll_ctl(efd, EPOLL_CTL_DEL, data->tcp_s, 0);
+
+	close(data->tls_s);
+	close(data->tcp_s);
+
+	SSL_free(conn->data->ssl);
+}
+
+static int handle_state(connection_t *conn, int ret, int efd)
+{
+	struct epoll_event event = {0};
+
+	event.data.ptr = conn;
+
+	switch(SSL_get_error(conn->data->ssl, ret)){
+	case SSL_ERROR_NONE:
+		return 1;
+	case SSL_ERROR_WANT_READ:
+		event.events = EPOLLIN;
+		epoll_ctl(efd, EPOLL_CTL_MOD, conn->data->tls_s, &event);
+		return 0;
+	case SSL_ERROR_WANT_WRITE:
+		event.events = EPOLLOUT;
+		epoll_ctl(efd, EPOLL_CTL_MOD, conn->data->tls_s, &event);
+		return 0;
+	default:
+		return -1;
+	}
+}
+
+int do_SSL_handshake(connection_t *conn, int efd)
+{
+	SSL *ssl = conn->data->ssl;
+	int ret;
+
+	ret = SSL_do_handshake(ssl);
+	ret = handle_state(conn, ret, efd);
+
+	if (ret <= 0)
+		return ret;
+
+	conn->data->ssl_state = SSL_OK;
+
+	struct epoll_event event = {0};
+	event.data.ptr = conn;
+	event.events = EPOLLIN;
+	epoll_ctl(efd, EPOLL_CTL_MOD, conn->data->tls_s, &event);
+
+	return 1;
+}
+
+int do_SSL_read(connection_t *conn, int efd)
+{
+	return 1;
+}
+
+int do_SSL_write(connection_t *conn, int efd)
+{
+	return 1;
+}
+
+int do_read(connection_t *conn, int efd)
+{
+	return 1;
+}
+
+int do_write(connection_t *conn, int efd)
+{
+	return 1;
 }
