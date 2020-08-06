@@ -86,7 +86,7 @@ int main(int argc, const char** argv)
 			SSL_set_accept_state(ssl);
 			SSL_set_fd(ssl, tls_client_sock);
 
-			conn_buf = calloc(1, sizeof *conn_buf);
+			conn_buf = calloc(2, sizeof *conn_buf);
 			conn_buf->type = CLIENT;
 			conn_buf->data = calloc(1, sizeof *(conn_buf->data));
 			init_data(conn_buf->data, tls_client_sock, -1, ssl);
@@ -109,11 +109,37 @@ int main(int argc, const char** argv)
 					ret = do_SSL_read(conn_buf, efd);
 					if (ret > 0){
 						//TODO epollout to tcp_serv
+						event.events = EPOLLIN|EPOLLOUT;
+						event.data.ptr = conn_buf+1;
+						ret = epoll_ctl(
+							efd,
+							EPOLL_CTL_MOD,
+							(conn_buf+1)->data->tcp_s,
+							&event);
+						if (ret < 0){
+							perror("epoll_ctl");
+							cleanup_connection(
+								conn_buf+1,
+								efd);
+						}
 					}
 				} else {// if (events[i].events & EPOLLOUT)
 					ret = do_SSL_write(conn_buf, efd);
 					if (ret > 0){
-						//TODO remove epollout from tcp_serv
+						//TODO remove epollout from tls_client
+						event.events = EPOLLIN;
+						event.data.ptr = conn_buf;
+						ret = epoll_ctl(
+							efd,
+							EPOLL_CTL_MOD,
+							(conn_buf)->data->tls_s,
+							&event);
+						if (ret < 0){
+							perror("epoll_ctl");
+							cleanup_connection(
+								conn_buf,
+								efd);
+						}
 					}
 				}
 				break;
@@ -128,7 +154,7 @@ int main(int argc, const char** argv)
 								argv[1], CLIENT);
 					set_nonblocking(conn_buf->data->tcp_s);
 
-					tmp = calloc(1, sizeof *tmp);
+					tmp = conn_buf+1;
 					tmp->type = SERVER;
 					tmp->data = conn_buf->data;
 
@@ -162,10 +188,10 @@ int main(int argc, const char** argv)
 		} else { // if (SERVER == conn_buf->type)
 
 			if (events[i].events & EPOLLIN){
-				//TODO do_read();
+				do_read(conn_buf, efd);
 
 			} else { // if (events[i].events & EPOLLOUT)
-				//TODO do_write();
+				do_write(conn_buf, efd);
 				// maybe w/o dedicated functions? 
 
 			}

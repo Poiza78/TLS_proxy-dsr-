@@ -201,15 +201,9 @@ void cleanup_connection(connection_t *conn, int efd)
 
 		SSL_free(conn->data->ssl);
 	}
-	switch(conn->type){
-	case LISTENER:
-	case CLIENT:
-		free(conn);
-		break;
-	case SERVER:
-		free(conn-1);
-		break;
-	}
+	if (SERVER == conn->type) conn--;
+	free(conn);
+	conn = NULL;
 }
 
 static int handle_state(connection_t *conn, int ret, int efd)
@@ -260,6 +254,7 @@ int do_SSL_read(connection_t *conn, int efd)
 	size = &(conn->data->read_size);
 	total = &(conn->data->read_total);
 
+	/* ?? undeclared ?? */
 	//ret = SSL_read_ex(ssl, buf, *size, total); 
 	ret = SSL_read(ssl, buf+*total, *size);
 	err = handle_state(conn, ret, efd);
