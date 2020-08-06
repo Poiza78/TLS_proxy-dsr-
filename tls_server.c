@@ -107,9 +107,14 @@ int main(int argc, const char** argv)
 			case SSL_OK:
 				if (events[i].events & EPOLLIN){
 					ret = do_SSL_read(conn_buf, efd);
-
-				} else {// if (events[i].events & EPOLLOUT
+					if (ret > 0){
+						//TODO epollout to tcp_serv
+					}
+				} else {// if (events[i].events & EPOLLOUT)
 					ret = do_SSL_write(conn_buf, efd);
+					if (ret > 0){
+						//TODO remove epollout from tcp_serv
+					}
 				}
 				break;
 			case SSL_WANT_HANDSHAKE:
@@ -138,7 +143,6 @@ int main(int argc, const char** argv)
 						perror("epoll_ctl");
 						cleanup_connection(tmp, efd);
 					}
-					tmp = NULL;
 					continue;
 				}
 				break;

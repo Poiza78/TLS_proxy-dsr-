@@ -74,8 +74,7 @@ SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void),
 		TLS_error();
 
 	// second flag ignored on client side 
-	SSL_CTX_set_verify(ctx,
-			SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT , 0);
+	SSL_CTX_set_verify(ctx,	SSL_VERIFY_PEER, 0);
 
 	return ctx;
 }
@@ -83,10 +82,16 @@ SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void),
 int verificate(SSL *ssl, char *common_name)
 {
 	X509* cert = SSL_get_peer_certificate(ssl);
-	if (!cert) return -1;
+	if (!cert){
+		fprintf(stderr, "no certificate!\n");
+		return -1;
+	}
 
 	int ret = SSL_get_verify_result(ssl);
-	if (ret != X509_V_OK) return -1;
+	if (ret != X509_V_OK){
+		fprintf(stderr, "wrong certificate!\n");
+		return -1;
+	}
 
 	ret = X509_check_host(cert, common_name, 0,0,0);
 	X509_free(cert);
@@ -181,19 +186,30 @@ void cleanup_connection(connection_t *conn, int efd)
 {
 	struct data_t *data = conn->data;
 
-	free(data->read_buf);
-	free(data->write_buf);
+	if (data != NULL){
+		free(data->read_buf);
+		free(data->write_buf);
 
-	data->read_buf = NULL;
-	data->write_buf = NULL;
+		data->read_buf = NULL;
+		data->write_buf = NULL;
 
-	epoll_ctl(efd, EPOLL_CTL_DEL, data->tls_s, 0);
-	epoll_ctl(efd, EPOLL_CTL_DEL, data->tcp_s, 0);
+		epoll_ctl(efd, EPOLL_CTL_DEL, data->tls_s, 0);
+		epoll_ctl(efd, EPOLL_CTL_DEL, data->tcp_s, 0);
 
-	close(data->tls_s);
-	close(data->tcp_s);
+		close(data->tls_s);
+		close(data->tcp_s);
 
-	SSL_free(conn->data->ssl);
+		SSL_free(conn->data->ssl);
+	}
+	switch(conn->type){
+	case LISTENER:
+	case CLIENT:
+		free(conn);
+		break;
+	case SERVER:
+		free(conn-1);
+		break;
+	}
 }
 
 static int handle_state(connection_t *conn, int ret, int efd)
@@ -204,6 +220,9 @@ static int handle_state(connection_t *conn, int ret, int efd)
 
 	switch(SSL_get_error(conn->data->ssl, ret)){
 	case SSL_ERROR_NONE:
+		conn->data->ssl_state = SSL_OK;
+		event.events = EPOLLIN;
+		epoll_ctl(efd, EPOLL_CTL_MOD, conn->data->tls_s, &event);
 		return 1;
 	case SSL_ERROR_WANT_READ:
 		event.events = EPOLLIN;
@@ -221,26 +240,41 @@ static int handle_state(connection_t *conn, int ret, int efd)
 int do_SSL_handshake(connection_t *conn, int efd)
 {
 	SSL *ssl = conn->data->ssl;
-	int ret;
+	int ret, err;
 
 	ret = SSL_do_handshake(ssl);
-	ret = handle_state(conn, ret, efd);
+	err = handle_state(conn, ret, efd);
 
-	if (ret <= 0)
-		return ret;
-
-	conn->data->ssl_state = SSL_OK;
-
-	struct epoll_event event = {0};
-	event.data.ptr = conn;
-	event.events = EPOLLIN;
-	epoll_ctl(efd, EPOLL_CTL_MOD, conn->data->tls_s, &event);
-
-	return 1;
+	return err;
 }
 
 int do_SSL_read(connection_t *conn, int efd)
 {
+	SSL *ssl;
+	char *buf;
+	size_t *size, *total;
+	int ret, err;
+
+	ssl = conn->data->ssl;
+	buf = conn->data->read_buf;
+	size = &(conn->data->read_size);
+	total = &(conn->data->read_total);
+
+	//ret = SSL_read_ex(ssl, buf, *size, total); 
+	ret = SSL_read(ssl, buf+*total, *size);
+	err = handle_state(conn, ret, efd);
+
+	if (err <= 0){
+		conn->data->ssl_state = SSL_WANT_PERFORM_READ;
+		return err;
+	}
+
+	*total += ret;
+	if (*total == *size){
+		//TODO remake this ...
+		*size <<= 1;
+		buf = realloc(buf, *size);
+	}
 	return 1;
 }
 
