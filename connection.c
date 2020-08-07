@@ -249,15 +249,76 @@ int do_SSL_read(connection_t *conn, int efd)
 
 int do_SSL_write(connection_t *conn, int efd)
 {
-	return 1;
+	SSL *ssl;
+	char *buf;
+	size_t *total;
+	int ret;
+	enum ssl_state st, *state;
+
+	ssl = conn->data->ssl;
+	buf = conn->data->write_buf;
+	total = &(conn->data->write_total);
+	state = &(conn->data->ssl_state);
+
+	/* ?? undeclared ?? */
+	//ret = SSL_read_ex(ssl, buf, *size, total); 
+
+	ret = SSL_write(ssl, buf, *total);
+	st = handle_state(conn, ret, efd);
+
+	*state = (st <= 0)? st : SSL_WANT_PERFORM_READ;
+
+	if ( SSL_OK == *state )
+		/* 
+		 * SSL_write() will only return
+		 * with success when the
+		 * complete contents of buf
+		 * have been written
+		 */
+		*total = 0;
+
+	return *state;
 }
 
 int do_read(connection_t *conn, int efd)
 {
+	char *buf = conn->data->write_buf;
+	size_t	*total = &(conn->data->write_total),
+		*size = &(conn->data->write_size);
+	int ret;
+
+	ret = read(conn->data->tcp_s, buf+*total, *size);
+
+	if (ret < 0){
+		perror("do_read");
+		return -1;
+	}
+	*total += ret;
+	if (*total == *size){
+		*size <<= 1;
+		buf = realloc(buf, *size);
+	}
 	return 1;
 }
 
 int do_write(connection_t *conn, int efd)
 {
-	return 1;
+	char *buf = conn->data->read_buf;
+	size_t *total = &(conn->data->read_total);
+	int ret;
+
+	ret = write(conn->data->tcp_s, buf, *total);
+
+	if (ret < 0){
+		perror("do_write");
+		return -1;
+	}
+	if (ret == *total){
+		*total = 0;
+		return 1;
+	}
+
+	memmove(buf, buf+*total, ret);
+	*total -= ret;
+	return 0;
 }
