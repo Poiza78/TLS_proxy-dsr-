@@ -122,7 +122,6 @@ int main(int argc, const char** argv)
 					perror("epoll_ctl");
 					cleanup_connection(conn_buf, efd);
 				}
-				continue;
 			} else
 			if( (SSL_WANT_PERFORM_READ == *state
 			  ||(SSL_OK == *state && (events[i].events & EPOLLIN)))
