@@ -13,9 +13,10 @@ enum ssl_state
 {
 	SSL_FAIL = -1,
 	SSL_OK,
-	SSL_WANT_HANDSHAKE,
 	SSL_WANT_PERFORM_READ,
-	SSL_WANT_PERFORM_WRITE
+	SSL_WANT_PERFORM_WRITE,
+	SSL_WANT_HANDSHAKE,
+	SSL_WANT_IO
 };
 
 typedef struct
@@ -40,7 +41,7 @@ typedef struct
 
 } connection_t;
 
-void init_data(struct data_t *data, int tls_s, int tcp_s, SSL* ssl);
+void *init_connection(int tls_s, int tcp_s, SSL* ssl);
 void cleanup_connection(connection_t *conn, int efd);
 
 int make_socket(int ip, const char* port, int type);
@@ -50,9 +51,9 @@ void error(const char* err_msg);
 SSL_CTX* init_CTX(const SSL_METHOD *(*TLS_method)(void),
 		const char *cert, const char *key, const char *ca);
 
-int verificate(SSL *ssl, char *common_name);
+int verificate(connection_t *conn, char *common_name);
 
-int do_SSL_handshake(connection_t *conn, int efd);
+int do_SSL_handshake(connection_t *conn, int efd, char *common_name);
 int do_SSL_read(connection_t *conn, int efd);
 int do_SSL_write(connection_t *conn, int efd);
 int do_read(connection_t *conn, int efd);

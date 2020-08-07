@@ -41,11 +41,11 @@ int main(int argc, const char** argv)
 
 
 	conn_buf = calloc(1, sizeof *conn_buf);
+	conn_buf->data = NULL;
 	conn_buf->type = LISTENER;
 
 	event.events = EPOLLIN;
 	event.data.ptr = conn_buf;
-	conn_buf = NULL;
 
 	if (epoll_ctl(efd, EPOLL_CTL_ADD, tls_serv_sock, &event) < 0)
 		error("epoll_ctl");
@@ -86,10 +86,7 @@ int main(int argc, const char** argv)
 			SSL_set_accept_state(ssl);
 			SSL_set_fd(ssl, tls_client_sock);
 
-			conn_buf = calloc(2, sizeof *conn_buf);
-			conn_buf->type = CLIENT;
-			conn_buf->data = calloc(1, sizeof *(conn_buf->data));
-			init_data(conn_buf->data, tls_client_sock, -1, ssl);
+			conn_buf = init_connection(tls_client_sock, -1, ssl);
 
 			event.events = EPOLLIN;
 			event.data.ptr = conn_buf;
@@ -100,14 +97,33 @@ int main(int argc, const char** argv)
 				perror("epoll_ctl");
 				cleanup_connection(conn_buf, efd);
 			}
-			conn_buf = NULL;
-
 		} else if (CLIENT == conn_buf->type){
 			switch (conn_buf->data->ssl_state){
+			case SSL_WANT_HANDSHAKE:
+				if (SSL_OK == do_SSL_handshake(conn_buf, efd, CN)){
+
+					conn_buf->data->tcp_s =	make_socket(
+								INADDR_LOOPBACK,
+								argv[1], CLIENT);
+					set_nonblocking(conn_buf->data->tcp_s);
+
+					event.events = EPOLLIN;
+					event.data.ptr = conn_buf+1;
+
+					ret = epoll_ctl(efd,
+							EPOLL_CTL_ADD,
+							conn_buf->data->tcp_s,
+							&event);
+					if (ret < 0){
+						perror("epoll_ctl");
+						cleanup_connection(conn_buf, efd);
+					}
+					continue;
+				}
+				break;
 			case SSL_OK:
 				if (events[i].events & EPOLLIN){
-					ret = do_SSL_read(conn_buf, efd);
-					if (ret > 0){
+					if(SSL_OK == do_SSL_read(conn_buf, efd)){
 						//TODO epollout to tcp_serv
 						event.events = EPOLLIN|EPOLLOUT;
 						event.data.ptr = conn_buf+1;
@@ -143,35 +159,6 @@ int main(int argc, const char** argv)
 					}
 				}
 				break;
-			case SSL_WANT_HANDSHAKE:
-				if ((ret = do_SSL_handshake(conn_buf, efd)) > 0
-				&&(ret=verificate(conn_buf->data->ssl,CN)) > 0){
-
-					connection_t *tmp;
-
-					conn_buf->data->tcp_s =	make_socket(
-								INADDR_LOOPBACK,
-								argv[1], CLIENT);
-					set_nonblocking(conn_buf->data->tcp_s);
-
-					tmp = conn_buf+1;
-					tmp->type = SERVER;
-					tmp->data = conn_buf->data;
-
-					event.events = EPOLLIN;
-					event.data.ptr = tmp;
-
-					ret = epoll_ctl(efd,
-							EPOLL_CTL_ADD,
-							tmp->data->tcp_s,
-							&event);
-					if (ret < 0){
-						perror("epoll_ctl");
-						cleanup_connection(tmp, efd);
-					}
-					continue;
-				}
-				break;
 			// next 2 cases for non-application data
 			case SSL_WANT_PERFORM_READ:
 				ret = do_SSL_read(conn_buf, efd);
@@ -179,10 +166,10 @@ int main(int argc, const char** argv)
 			case SSL_WANT_PERFORM_WRITE:
 				ret = do_SSL_write(conn_buf, efd);
 				break;
-			case SSL_FAIL:
+			default:
 				break;
 			}
-			if (ret < 0) // fatal error during I/O 
+			if (SSL_FAIL == conn_buf->data->ssl_state) // fatal error during I/O 
 				cleanup_connection(conn_buf, efd);
 
 		} else { // if (SERVER == conn_buf->type)
