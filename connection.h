@@ -59,5 +59,4 @@ int do_SSL_write(connection_t *conn, int efd);
 int do_read(connection_t *conn, int efd);
 int do_write(connection_t *conn, int efd);
 
-
 #endif
