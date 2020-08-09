@@ -27,7 +27,7 @@ int main(int argc, const char** argv)
 	int tls_serv_sock, tls_client_sock;
 	int efd, ready, ret;
 	struct epoll_event *events, event = {0};
-	connection_t *conn_buf;
+	connection_t *conn_buf, *conn;
 
 	ctx = init_CTX(TLSv1_2_server_method, CERT, KEY, CA);
 
@@ -40,12 +40,12 @@ int main(int argc, const char** argv)
 		error("epoll_create1");
 
 
-	conn_buf = calloc(1, sizeof *conn_buf);
-	conn_buf->data = NULL;
-	conn_buf->type = LISTENER;
+	conn = calloc(1, sizeof *conn_buf);
+	conn->data = NULL;
+	conn->type = LISTENER;
 
 	event.events = EPOLLIN;
-	event.data.ptr = conn_buf;
+	event.data.ptr = conn;
 
 	if (epoll_ctl(efd, EPOLL_CTL_ADD, tls_serv_sock, &event) < 0)
 		error("epoll_ctl");
@@ -61,6 +61,9 @@ int main(int argc, const char** argv)
 	for (int i=0; i<ready; ++i){
 
 		conn_buf = events[i].data.ptr;
+
+		if (NULL == conn_buf)
+			continue;
 
 		if (( events[i].events & EPOLLERR )
 		  ||( events[i].events & EPOLLHUP )
@@ -200,6 +203,7 @@ int main(int argc, const char** argv)
 	} // event_loop
 	} // while (1)
 
+	free(conn);
 	SSL_CTX_free(ctx);
 	close(tls_serv_sock);
 	close(efd);

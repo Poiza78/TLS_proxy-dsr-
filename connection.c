@@ -200,13 +200,13 @@ static int handle_state(connection_t *conn, int ret, int efd)
 int do_SSL_handshake(connection_t *conn, int efd, char *common_name)
 {
 	SSL *ssl = conn->data->ssl;
-	enum ssl_state *state = &(conn->data->ssl_state);
+	enum ssl_state st, *state = &(conn->data->ssl_state);
 	int ret;
 
 	ret = SSL_do_handshake(ssl);
-	ret = handle_state(conn, ret, efd);
+	st = handle_state(conn, ret, efd);
 
-	*state = (ret <= 0)? ret : SSL_WANT_HANDSHAKE;
+	*state = (SSL_WANT_IO == st)? SSL_WANT_HANDSHAKE : st;
 
 	if (SSL_OK == *state)
 		*state = verificate(conn, common_name);
@@ -234,7 +234,7 @@ int do_SSL_read(connection_t *conn, int efd)
 	ret = SSL_read(ssl, buf+*total, *size);
 	st = handle_state(conn, ret, efd);
 
-	*state = (st <= 0)? st : SSL_WANT_PERFORM_READ;
+	*state = (SSL_WANT_IO == st)? SSL_WANT_PERFORM_READ : st;
 
 	if ( SSL_OK == *state ){
 		*total += ret;
@@ -266,7 +266,7 @@ int do_SSL_write(connection_t *conn, int efd)
 	ret = SSL_write(ssl, buf, *total);
 	st = handle_state(conn, ret, efd);
 
-	*state = (st <= 0)? st : SSL_WANT_PERFORM_READ;
+	*state = (SSL_WANT_IO == st)? SSL_WANT_PERFORM_WRITE : st;
 
 	if ( SSL_OK == *state )
 		/* 
@@ -289,9 +289,8 @@ int do_read(connection_t *conn, int efd)
 
 	ret = read(conn->data->tcp_s, buf+*total, *size);
 
-	if (ret < 0){
-		perror("do_read");
-		return -1;
+	if (ret <= 0){
+		return ret;
 	}
 	*total += ret;
 	if (*total == *size){
