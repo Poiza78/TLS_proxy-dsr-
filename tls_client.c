@@ -23,15 +23,22 @@ int main(int argc, const char** argv)
 
 	SSL_CTX *ctx;
 	int tls_serv_sock, tls_client_sock, tcp_client_sock;
+	int efd, ready, ret;
+	struct epoll_event events[2], event = {0};
+	connection_t *conn_buf;
+
 
 	ctx = init_CTX(TLSv1_2_client_method, CERT, KEY, CA);
 
 	tls_client_sock = make_socket(INADDR_ANY, argv[2], SERVER);
+
 	if (listen(tls_client_sock, SOMAXCONN) < 0)
 		error("listen");
 
+	if ((efd = epoll_create1(0)) < 0)
+		error("epoll_create1");
+
 	while(1){
-		SSL *ssl;
 
 		tcp_client_sock = accept(tls_client_sock, 0, 0);
 		if (tcp_client_sock < 0){
@@ -43,82 +50,127 @@ int main(int argc, const char** argv)
 		tls_serv_sock = make_socket(INADDR_LOOPBACK, argv[1], CLIENT);
 		set_nonblocking(tls_serv_sock);
 
-		ssl = SSL_new(ctx);
+		SSL *ssl = SSL_new(ctx);
 		SSL_set_connect_state(ssl);
 		SSL_set_fd(ssl, tls_serv_sock);
 
-		int ready, efd;
-		struct epoll_event event, *events;
-
-		if ((efd = epoll_create1(0)) < 0)
-			error("epoll_create1");
+		conn_buf = init_connection(tls_serv_sock, tcp_client_sock, ssl);
 
 		event.events = EPOLLIN;
-		event.data.fd = tcp_client_sock;
+		event.data.ptr = conn_buf;
 
-		if (epoll_ctl(efd, EPOLL_CTL_ADD, tcp_client_sock, &event) < 0)
-			error("epoll_ctl");
+		ret = epoll_ctl(efd, EPOLL_CTL_ADD, tcp_client_sock, &event);
+		if (ret < 0){
+			perror("epoll_ctl");
+			goto out;
+		}
 
 		event.events = EPOLLIN;
-		event.data.fd = tls_serv_sock;
+		event.data.ptr = conn_buf+1; // &conn_buf[1]
 
-		if (epoll_ctl(efd, EPOLL_CTL_ADD, tls_serv_sock, &event) < 0)
-			error("epoll_ctl");
+		ret = epoll_ctl(efd, EPOLL_CTL_ADD, tls_serv_sock, &event);
+		if (ret < 0){
+			perror("epoll_ctl");
+			goto out;
+		}
+		while (SSL_WANT_HANDSHAKE == do_SSL_handshake(conn_buf, efd,CN))
+			epoll_wait(efd, events, 1, -1);
 
-		events = calloc(2, sizeof *events);
+		if (SSL_FAIL == conn_buf->data->ssl_state){
+			fprintf(stderr, "unsuccessful connection\n");
+			goto out;
+		}
 
 		while(1){
 
-			ready = epoll_wait(efd, events, 1, -1);
-			if (ready < 0) error("epoll_wait");
+		ready = epoll_wait(efd,events, 2, -1);
+		if (ready < 0)
+			error("epoll_wait");
 
-			for (int i=0; i < ready; ++i){
+		for (int i=0; i<ready; ++i){
 
-				if ((events[i].events & EPOLLERR)
-				  ||(events[i].events & EPOLLHUP)
-				  ||(!(events[i].events & EPOLLIN))){
-					fprintf (stderr, "epoll error\n");
-					goto TLS_error;
+			conn_buf = events[i].data.ptr;
+
+			if (( events[i].events & EPOLLERR )
+			  ||( events[i].events & EPOLLHUP )
+			  ||(!( events[i].events & EPOLLIN )
+		          && !( events[i].events & EPOLLOUT )))
+			{
+				goto out;
+			} else
+			if (CLIENT == conn_buf->type){
+
+				if ((events[i].events & EPOLLIN)
+				&& (ret = do_read(conn_buf, efd)) > 0)
+				{
+					//add epollout to tls_server
+					event.events = EPOLLIN | EPOLLOUT;
+					event.data.ptr = conn_buf+1;
+					ret = epoll_ctl(efd,
+							EPOLL_CTL_MOD,
+							conn_buf->data->tls_s,
+							&event);
+				} else
+				if ((events[i].events & EPOLLOUT)
+				&& (ret = do_write(conn_buf, efd)) > 0)
+				{
+					//remove epollout from tcp_client
+					event.events = EPOLLIN;
+					event.data.ptr = conn_buf;
+					ret = epoll_ctl(efd,
+							EPOLL_CTL_MOD,
+							conn_buf->data->tcp_s,
+							&event);
 				}
-				if (!SSL_is_init_finished(ssl)){
-					if (SSL_nonblock(SSL_do_handshake, ssl, 0, 0) <= 0){
-						fprintf(stderr, "ssl_accept error\n");
-						goto TLS_error;
-					}
-					if (!verificate(ssl, CN)){
-						fprintf(stderr, "verification error\n");
-						goto TLS_error;
-					}
+				if (ret < 0) goto out;
+
+			} else {// type == SERVER
+
+			enum ssl_state *state = &(conn_buf->data->ssl_state);
+
+			if( (SSL_WANT_PERFORM_READ == *state
+			  ||(SSL_OK == *state && (events[i].events & EPOLLIN)))
+			  && (SSL_OK == do_SSL_read(conn_buf, efd)))
+			// if ( (1 or (2 and 3)) and 4 )
+			{
+				//add epollout to tcp_client
+				event.events = EPOLLIN | EPOLLOUT;
+				event.data.ptr = conn_buf-1;
+				ret = epoll_ctl(efd,
+						EPOLL_CTL_MOD,
+						(conn_buf)->data->tcp_s,
+						&event);
+				if (ret < 0){
+					perror("epoll_ctl");
+					goto out;
 				}
-				char buf[BUF_SIZE];
-				int ret;
-				memset(buf, 0, sizeof buf);
-
-				if (tcp_client_sock == events[i].data.fd){
-					ret = read(tcp_client_sock, buf, sizeof buf);
-					ret = SSL_nonblock(SSL_write, ssl, buf, ret);
-
-					if (ret <= 0)
-						goto TLS_error;
-
-				} else if (tls_serv_sock == events[i].data.fd){
-					ret = SSL_nonblock(SSL_read, ssl, buf, sizeof buf);
-
-					if (ret <= 0)
-						goto TLS_error;
-
-					write(tcp_client_sock, buf, ret);
+			} else
+			if( (SSL_WANT_PERFORM_WRITE == *state
+			  ||(SSL_OK == *state && (events[i].events & EPOLLOUT)))
+			  && (SSL_OK == do_SSL_write(conn_buf, efd)))
+			{
+				//remove epollout from tls_server
+				event.events = EPOLLIN;
+				event.data.ptr = conn_buf;
+				ret = epoll_ctl(efd,
+						EPOLL_CTL_MOD,
+						(conn_buf)->data->tls_s,
+						&event);
+				if (ret < 0){
+					perror("epoll_ctl");
+					goto out;
 				}
 			}
-		}
-		TLS_error:
-		SSL_free(ssl);
-		free(events);
-		close (tcp_client_sock);
-		close (tls_serv_sock);
-		close (efd);
+			if (SSL_FAIL == *state) // fatal error during secure I/O 
+				goto out; // or break? 
+			} // type == SERVER
+		} // event loop
+		} // nested while(1)
+out:
+		cleanup_connection(conn_buf, efd);
 	}
 	SSL_CTX_free(ctx);
 	close(tls_client_sock);
+	close(efd);
 	exit(EXIT_SUCCESS);
 }

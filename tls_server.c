@@ -55,10 +55,8 @@ int main(int argc, const char** argv)
 	while(1){
 
 	ready = epoll_wait(efd, events, MAX_EVENTS, -1);
-	if (ready < 0){
-		perror("epoll_wait");
-		break;
-	}
+	if (ready < 0)
+		error("epoll_wait");
 
 	for (int i=0; i<ready; ++i){
 
@@ -128,7 +126,7 @@ int main(int argc, const char** argv)
 			  && (SSL_OK == do_SSL_read(conn_buf, efd)))
 			// if ( (1 or (2 and 3)) and 4 )
 			{
-				//add epollout to tcp_serv
+				//add epollout to tcp_server
 				event.events = EPOLLIN | EPOLLOUT;
 				event.data.ptr = conn_buf+1;
 				ret = epoll_ctl(efd,
@@ -165,32 +163,36 @@ int main(int argc, const char** argv)
 			if ((events[i].events & EPOLLIN)
 			&& (ret = do_read(conn_buf, efd)) > 0)
 			{
-				//add epollout to tls_serv
+				//add epollout to tls_client
 				event.events = EPOLLIN | EPOLLOUT;
 				event.data.ptr = conn_buf-1;
 				ret = epoll_ctl(efd,
 						EPOLL_CTL_MOD,
-						(conn_buf)->data->tls_s,
+						conn_buf->data->tls_s,
 						&event);
+				/* 
 				if (ret < 0){
 					perror("epoll_ctl");
 					cleanup_connection(conn_buf, efd);
 				}
+				*/
 			} else
 			if ((events[i].events & EPOLLOUT)
 			&& (ret = do_write(conn_buf, efd)) > 0)
 			{
-				//remove epollout from tcp_client
+				//remove epollout from tcp_server
 				event.events = EPOLLIN;
 				event.data.ptr = conn_buf;
 				ret = epoll_ctl(efd,
 						EPOLL_CTL_MOD,
-						(conn_buf)->data->tcp_s,
+						conn_buf->data->tcp_s,
 						&event);
+				/* 
 				if (ret < 0){
 					perror("epoll_ctl");
 					cleanup_connection(conn_buf, efd);
 				}
+				*/
 			}
 			if (ret < 0) cleanup_connection(conn_buf, efd);
 		} // case SERVER
