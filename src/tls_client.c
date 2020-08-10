@@ -23,7 +23,7 @@ int main(int argc, const char** argv)
 
 	SSL_CTX *ctx;
 	int tls_serv_sock, tls_client_sock, tcp_client_sock;
-	int efd, ready, ret;
+	int efd, ready, flags, ret;
 	struct epoll_event events[2], event = {0};
 	connection_t *conn_buf;
 
@@ -56,7 +56,8 @@ int main(int argc, const char** argv)
 
 		conn_buf = init_connection(tls_serv_sock, tcp_client_sock, ssl);
 
-		event.events = EPOLLIN;
+		flags = EPOLLIN | EPOLLRDHUP;
+		event.events = flags;
 		event.data.ptr = conn_buf;
 
 		ret = epoll_ctl(efd, EPOLL_CTL_ADD, tcp_client_sock, &event);
@@ -93,6 +94,7 @@ int main(int argc, const char** argv)
 
 			if (( events[i].events & EPOLLERR )
 			  ||( events[i].events & EPOLLHUP )
+			  ||( events[i].events & EPOLLRDHUP)
 			  ||(!( events[i].events & EPOLLIN )
 		          && !( events[i].events & EPOLLOUT )))
 			{
@@ -115,7 +117,7 @@ int main(int argc, const char** argv)
 				&& (ret = do_write(conn_buf, efd)) > 0)
 				{
 					//remove epollout from tcp_client
-					event.events = EPOLLIN;
+					event.events = flags;
 					event.data.ptr = conn_buf;
 					ret = epoll_ctl(efd,
 							EPOLL_CTL_MOD,
@@ -134,7 +136,7 @@ int main(int argc, const char** argv)
 			// if ( (1 or (2 and 3)) and 4 )
 			{
 				//add epollout to tcp_client
-				event.events = EPOLLIN | EPOLLOUT;
+				event.events = flags | EPOLLOUT;
 				event.data.ptr = conn_buf-1;
 				ret = epoll_ctl(efd,
 						EPOLL_CTL_MOD,
