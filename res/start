@@ -9,9 +9,6 @@ fi
 let a=$1+1
 let b=$a+1
 
-
-make
-
 ./tcp_server $1 &
 sleep 1s
 ./tls_server $1 $a &
