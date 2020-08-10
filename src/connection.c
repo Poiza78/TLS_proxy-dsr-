@@ -287,7 +287,7 @@ int do_read(connection_t *conn, int efd)
 		*size = &(conn->data->write_size);
 	int ret;
 
-	ret = read(conn->data->tcp_s, buf+*total, *size);
+	ret = read(conn->data->tcp_s, buf+*total, *size-*total);
 
 	if (ret <= 0){
 		return ret;
@@ -317,7 +317,7 @@ int do_write(connection_t *conn, int efd)
 		return 1;
 	}
 
-	memmove(buf, buf+*total, ret);
+	memmove(buf, buf+ret, *total-ret);
 	*total -= ret;
 	return 0;
 }
