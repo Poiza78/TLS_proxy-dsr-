@@ -13,6 +13,8 @@ PROGRAMS = tcp_server tcp_client tls_server tls_client
 
 #==============================================================================
 
+bins = $(PROGRAMS:%=$(BINDIR)/%)
+
 define compile
 $(CC) $(CFLAGS) $< -c -o $@
 endef
@@ -21,38 +23,50 @@ define link
 $(CC) $^ -o $@ $(LDLIBS)
 endef
 
-#vpath %.o $(OBJDIR)
-#vpath %.c $(SRCDIR)
-#vpath %.h $(SRCDIR)
+vpath %.o $(OBJDIR)
+vpath %.c $(SRCDIR)
+vpath %.h $(SRCDIR)
 
-all : dir res $(addprefix $(BINDIR)/,$(PROGRAMS))
+all : dir resources $(bins)
 
 dir :
-	- @mkdir -p $(OBJDIR)
-	- @mkdir -p $(BINDIR)
+	-@mkdir -p $(OBJDIR)
+	-@mkdir -p $(BINDIR)
 
-res : 
-	@cp -r $(RESDIR)/* $(BINDIR)/
+resources : 
+	-@cp -r $(RESDIR)/* $(BINDIR)/
 
-$(BINDIR)/tcp_server: $(addprefix $(OBJDIR)/,tcp_server.o connection.o)
+#$(bins): $(addprefix $(OBJDIR)/,$(@F) connection.o)
+	#$(link)
+
+#define fin
+#$(1): $(addprefix $(OBJDIR)/,$(@F) connection.o)
+#	$(link)
+#endef
+#$(foreach bin,$(bins),$(call $(fin $bin)))
+
+
+#$(BINDIR)/tcp_server: $(@F:%=%.o) connection.o
+
+$(BINDIR)/tcp_server: $(OBJDIR)/tcp_server.o connection.o
 	$(link)
 
-$(BINDIR)/tls_server: $(addprefix $(OBJDIR)/,tls_server.o connection.o)
+$(BINDIR)/tls_server: $(OBJDIR)/tls_server.o connection.o
 	$(link)
 
-$(BINDIR)/tcp_client: $(addprefix $(OBJDIR)/,tcp_client.o connection.o)
+$(BINDIR)/tcp_client: $(OBJDIR)/tcp_client.o connection.o
 	$(link)
 
-$(BINDIR)/tls_client: $(addprefix $(OBJDIR)/,tls_client.o connection.o)
+$(BINDIR)/tls_client: $(OBJDIR)/tls_client.o connection.o
 	$(link)
 
-$(OBJDIR)/connection.o: $(addprefix $(SRCDIR)/,connection.c connection.h)
+$(OBJDIR)/connection.o: connection.c connection.h
 	$(compile)
 
-$(OBJDIR)/%.o: $(SRCDIR)/%.c
+$(OBJDIR)/%.o: %.c
 	$(compile)
 
-.PHONY : all clean res
+.PHONY : all clean dir resources
 
 clean : 
 	@rm -rf $(BINDIR) $(OBJDIR)

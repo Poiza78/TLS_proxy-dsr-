@@ -2,6 +2,8 @@
 *.lib
 *.so
 *.out
+bin
+obj
 core*
 tcp_server
 tcp_client
