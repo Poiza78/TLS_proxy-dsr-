@@ -175,9 +175,8 @@ static void process_client(int sock)
 
 	while (1){
 		line = readline(">");
-		if (!line)
+		if (!strlen(line))
 			continue;
-		add_history(line);
 		type = identify(line);
 		switch (type){
 		case ADD:
@@ -196,6 +195,7 @@ static void process_client(int sock)
 			goto exit;	// goto instead of break because of 
 					// nested switch
 		}
+		if ( WRONG != type ) add_history(line);
 		free(line); // must have inside each iteration
 	}
 	exit:
