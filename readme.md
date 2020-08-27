@@ -1,6 +1,6 @@
 Extremely simple example of client-server application, which perform evaluation of math expression.
 
-Server applications are multi-client.
+**Server applications are multi-client.**
 
 ### Workflow ?
 1. TCP-client send request in json format 
@@ -11,7 +11,7 @@ Server applications are multi-client.
 
 ### Requirements
 - OpenSSL/LibreSSL dev
-- jansson
+- jansson lib
 
 ### Example
 
