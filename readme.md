@@ -1,12 +1,12 @@
-Extremely simple example of client-server application, which perform evaluation of math expression.
+An extremely simple example of a client-server application, which performs evaluation of math expression.
 
 **Server applications are multi-client.**
 
 ### Workflow ?
 1. TCP-client send request in json format 
-2. TLS-client take those request and send it to TLS-server via encrypted channel.
-3. TLS-server decrypt request and send it to TCP-server.
-4. TCP-server parse the request, evaluate expression via RPN and send response.
+2. TLS-client takes those request and send it to TLS-server via encrypted channel.
+3. TLS-server decrypts request and send it to TCP-server.
+4. TCP-server parses the request, evaluate expression via RPN and send the response.
 5. all operation vise-versa
 
 ### Requirements
@@ -31,5 +31,5 @@ You can use: add( *,+,() ), set, calculate, exit
 ### Error codes:
 1. parsing error  
 2. wrong expression  
-3. assymetric brackets  
+3. asymmetric brackets  
 4. not enough parameters  
