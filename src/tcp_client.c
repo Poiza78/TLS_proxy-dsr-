@@ -165,7 +165,7 @@ static int identify(const char* line)
 }
 static void process_client(int sock)
 {
-	printf("\nYou can use: add(*,+), set, calculate, exit\n\n");
+	printf("\nYou can use: add( *,+,() ), set, calculate, exit\n\n");
 	char* line;
 	int type;
 
