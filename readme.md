@@ -1,5 +1,7 @@
 Extremely simple example of client-server application, which perform evaluation of math expression.
 
+Server applications are multi-client.
+
 ### Workflow ?
 1. TCP-client send request in json format 
 2. TLS-client take those request and send it to TLS-server via encrypted channel.
